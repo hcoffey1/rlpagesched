@@ -1,6 +1,6 @@
 Virt Pages: 1024
-Page Total: 1024
-M1:         512
-M2:         512
-Page Size:  1024
+Page Total: 64
+M1:         32
+M2:         32 
+Page Size:  512
 Addr Size:  16 

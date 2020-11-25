@@ -63,13 +63,11 @@ int power_of_two(unsigned int val) {
  * update_page_LRU - update the page LRU information
  */
 static void update_page_LRU(int page) {
-#if 0
    int i;
 
-   for (i = 0; i < numphypages; i++)
+   for (i = 0; i < total_virtpages; i++)
       pages[i]++;
    pages[page] = 0;
-#endif
 }
 
 /*
@@ -209,6 +207,7 @@ int read_config(char *fileName) {
 int main(int argc, char **argv) {
   FILE *f;
   ulong instAddr, memAddr;
+  uint page;
   char accessType;
 
 
@@ -224,10 +223,14 @@ int main(int argc, char **argv) {
 
   while(fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF)
   {
-    printf("%lx\n", addr_mask);
     memAddr &= addr_mask;
-    printf("%lx : %c %lx %lx\n", instAddr, accessType, memAddr, memAddr >> tlb_line_shift);
+    //printf("%c %lx %lx\n", accessType, memAddr, memAddr >> tlb_line_shift);
+    proc_page_lookup(accessType, memAddr, &page);
   }
+
+  printf("STATISTICS\n");
+  printf("%-16s %9lu\n", "Page Hits", page_hits);
+  printf("%-16s %9lu\n", "Page Faults", page_faults);
 
   return 0;
 }
