@@ -6,4 +6,4 @@ M2:         32
 M2 Delay:   10 
 Page Size:  512
 Addr Size:  16 
-Epoch Intv: 1000
+Epoch Intv: 10000
