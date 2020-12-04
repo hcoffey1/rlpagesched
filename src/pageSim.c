@@ -13,6 +13,11 @@ uint total_physpages;
 uint total_virtpages;
 uint m1_pages;
 uint m2_pages;
+uint m1_delay;
+uint m2_delay;
+
+uint epoch_intv;
+
 uint page_size;
 uint addr_size;
 uint tlb_line_shift;
@@ -29,7 +34,11 @@ struct {
   unsigned short dirty;    /* has page been updated since loaded */
 } page_table[MAX_PAGES];
 
-ulong pages[MAX_PAGES];
+struct {
+  ulong lru;
+  ulong hits;
+} phys_pages[MAX_PAGES];
+
 
 /*
  * logtwo - return log2 of argument
@@ -59,23 +68,35 @@ int power_of_two(unsigned int val) {
   return (j == 1);
 }
 
+void reset_lru() {
+  for (int i = 0; i < total_physpages; i++) {
+    phys_pages[i].lru = 0;
+  }
+}
+
+void reset_page_hits() {
+  for (int i = 0; i < total_physpages; i++) {
+    phys_pages[i].hits = 0;
+  }
+}
+
 /*
  * update_page_LRU - update the page LRU information
  */
 static void update_page_LRU(int page) {
-   int i;
+  int i;
 
-   for (i = 0; i < total_virtpages; i++)
-      pages[i]++;
-   pages[page] = 0;
+  for (i = 0; i < total_physpages; i++)
+    phys_pages[i].lru++;
+  phys_pages[page].lru = 0;
 }
 
 /*
  * proc_page_lookup - process a page table lookup
+ * output: page - physical page frame
  */
 static int proc_page_lookup(char access_type, unsigned long address,
                             unsigned *page) {
-#if 1
   // register unsigned long c_address;
   unsigned long virtpage;
   int i, j, lru, hit;
@@ -103,8 +124,8 @@ static int proc_page_lookup(char access_type, unsigned long address,
       /* find the least recently accessed physical page */
       lru = 0;
       for (i = 0; i < total_physpages; i++)
-        if (pages[i] > lru) {
-          lru = pages[i];
+        if (phys_pages[i].lru >= lru) {
+          lru = phys_pages[i].lru;
           j = i;
         }
 
@@ -138,8 +159,6 @@ static int proc_page_lookup(char access_type, unsigned long address,
   update_page_LRU(*page);
 
   return hit;
-#endif
-  return 0;
 }
 
 int read_config(char *fileName) {
@@ -162,8 +181,16 @@ int read_config(char *fileName) {
     fprintf(stderr, "Failed to read in m1 phys page count.\n");
     return -1;
   }
+  if (fscanf(f, "M1 Delay:\t%u\n", &m1_delay) != 1) {
+    fprintf(stderr, "Failed to read in m1 delay.\n");
+    return -1;
+  }
   if (fscanf(f, "M2:\t%u\n", &m2_pages) != 1) {
     fprintf(stderr, "Failed to read in m2 phys page count.\n");
+    return -1;
+  }
+  if (fscanf(f, "M2 Delay:\t%u\n", &m2_delay) != 1) {
+    fprintf(stderr, "Failed to read in m2 delay.\n");
     return -1;
   }
 
@@ -196,9 +223,21 @@ int read_config(char *fileName) {
 
   addr_mask = (1ul << addr_size) - 1;
 
+  if (fscanf(f, "Epoch Intv:\t%u\n", &epoch_intv) != 1) {
+    fprintf(stderr, "Failed to read in epoch interval.\n");
+    return -1;
+  }
+
   fclose(f);
 
   return 0;
+}
+
+void schedule_epoch() {
+
+
+  reset_lru();
+  reset_page_hits();
 }
 
 /*
@@ -207,9 +246,10 @@ int read_config(char *fileName) {
 int main(int argc, char **argv) {
   FILE *f;
   ulong instAddr, memAddr;
+  uint cycle = 0;
+  ulong time = 0;
   uint page;
   char accessType;
-
 
   if (read_config(argv[1]) != 0) {
     return 1;
@@ -221,16 +261,29 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  while(fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF)
-  {
+  while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
+
+    if (cycle >= epoch_intv) {
+      schedule_epoch();
+    }
+
     memAddr &= addr_mask;
-    //printf("%c %lx %lx\n", accessType, memAddr, memAddr >> tlb_line_shift);
     proc_page_lookup(accessType, memAddr, &page);
+    phys_pages[page].hits++;
+
+    if (page < m1_pages) {
+      time += m1_delay;
+    } else {
+      time += m2_delay;
+    }
+
+    cycle++;
   }
 
   printf("STATISTICS\n");
   printf("%-16s %9lu\n", "Page Hits", page_hits);
   printf("%-16s %9lu\n", "Page Faults", page_faults);
+  printf("%-16s %9lu\n", "Time", time);
 
   return 0;
 }
