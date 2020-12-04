@@ -34,10 +34,67 @@ struct {
   unsigned short dirty;    /* has page been updated since loaded */
 } page_table[MAX_PAGES];
 
-struct {
+typedef struct phys_page{
+  //uint index;
+  ulong virtpage;
   ulong lru;
   ulong hits;
-} phys_pages[MAX_PAGES];
+} phys_page;
+
+phys_page phys_pages[MAX_PAGES];
+//Taken and modified from: https://www.geeksforgeeks.org/quick-sort/
+// A utility function to swap two elements 
+void swap(phys_page* a, phys_page* b) 
+{ 
+    phys_page t = *a; 
+    *a = *b; 
+    //a->index = t.index;
+    //t.index = b->index;
+    *b = t; 
+} 
+#if 1
+/* This function takes last element as pivot, places 
+   the pivot element at its correct position in sorted 
+    array, and places all smaller (smaller than pivot) 
+   to left of pivot and all greater elements to right 
+   of pivot */
+int partition (phys_page * arr, int low, int high) 
+{ 
+    int pivot = arr[high].hits;    // pivot 
+    int i = (low - 1);  // Index of smaller element 
+  
+    for (int j = low; j <= high- 1; j++) 
+    { 
+        // If current element is smaller than the pivot 
+        if (arr[j].hits > pivot) 
+        { 
+            i++;    // increment index of smaller element 
+            swap(&arr[i], &arr[j]); 
+        } 
+    } 
+    swap(&arr[i + 1], &arr[high]); 
+    return (i + 1); 
+} 
+  
+/* The main function that implements QuickSort 
+ arr[] --> Array to be sorted, 
+  low  --> Starting index, 
+  high  --> Ending index */
+void quickSort(phys_page * arr, int low, int high) 
+{ 
+    if (low < high) 
+    { 
+        /* pi is partitioning index, arr[p] is now 
+           at right place */
+        int pi = partition(arr, low, high); 
+  
+        // Separately sort elements before 
+        // partition and after partition 
+        quickSort(arr, low, pi - 1); 
+        quickSort(arr, pi + 1, high); 
+    } 
+} 
+ #endif 
 
 
 /*
@@ -118,12 +175,15 @@ static int proc_page_lookup(char access_type, unsigned long address,
 
     /* if the all of the physical pages have not yet been used */
     if (num_pages_ref < total_physpages)
+    {
       page_table[virtpage].phypage = num_pages_ref++;
+      phys_pages[page_table[virtpage].phypage].virtpage = virtpage;
+    }
     else {
 
       /* find the least recently accessed physical page */
       lru = 0;
-      for (i = 0; i < total_physpages; i++)
+      for (i = m1_pages; i < total_physpages; i++)
         if (phys_pages[i].lru >= lru) {
           lru = phys_pages[i].lru;
           j = i;
@@ -144,7 +204,9 @@ static int proc_page_lookup(char access_type, unsigned long address,
 
       /* update information for the newly resident virtual page */
       page_table[virtpage].phypage = j;
+      phys_pages[j].virtpage = virtpage;
       page_table[i].resident = FALSE;
+      //phys_pages[page_table[i].phypage].virtpage = 0;
     }
 
     /* mark the page as resident and that it is not dirty */
@@ -235,6 +297,20 @@ int read_config(char *fileName) {
 
 void schedule_epoch() {
 
+  quickSort(phys_pages, 0, total_physpages-1);
+  for(int i = 0; i < total_physpages; i++)
+  {
+    page_table[phys_pages[i].virtpage].phypage = i;
+  }
+
+#if 0
+  for(int i = 0; i < total_physpages; i++)
+  {
+    printf("%lu\n", phys_pages[i].hits);
+  }
+
+  exit(1);
+  #endif
 
   reset_lru();
   reset_page_hits();
@@ -260,6 +336,7 @@ int main(int argc, char **argv) {
     printf("Failed to open trace file\n");
     return 1;
   }
+
 
   while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
 
