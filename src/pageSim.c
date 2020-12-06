@@ -13,7 +13,7 @@
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-enum SCHEDULER{history, oracle_profile, oracle, rl};
+enum SCHEDULER{history, oracle, rl};
 
 uint total_physpages;
 uint total_virtpages;
@@ -308,7 +308,7 @@ int read_config(char *fileName) {
   return 0;
 }
 
-void schedule_epoch(enum SCHEDULER n, FILE * profOut, FILE * profIn) {
+void schedule_epoch(enum SCHEDULER n) {
 
   switch (n) {
     // History Page Scheduler
@@ -316,17 +316,6 @@ void schedule_epoch(enum SCHEDULER n, FILE * profOut, FILE * profIn) {
     quickSort(phys_pages, 0, total_physpages - 1);
     for (int i = 0; i < total_physpages; i++) {
       page_table[phys_pages[i].virtpage].phypage = i;
-    }
-    break;
-
-  // Oracle Profiler
-  case oracle_profile:
-    if (__glibc_unlikely(FIRST)) {
-      FIRST = FALSE;
-      break;
-    }
-    for (int i = 0; i < total_physpages; i++) {
-      fwrite(&phys_pages[i].hits, sizeof(ulong), 1, profOut);
     }
     break;
 
@@ -369,7 +358,7 @@ void schedule_epoch(enum SCHEDULER n, FILE * profOut, FILE * profIn) {
  * main - drives the cache simulator
  */
 int main(int argc, char **argv) {
-  FILE *f = NULL, *profIn = NULL, *profOut = NULL;
+  FILE *f = NULL;
   ulong instAddr, memAddr;
   uint cycle = 0;
   ulong time = 0;
@@ -386,22 +375,14 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-#ifdef ORACLE_PROFILE
-  profOut = fopen("oracle.profile", "wb");
-#endif
-
-#ifdef ORACLE
-  profIn = fopen("oracle.profile", "rb");
-#endif
-
   while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
 
     if (cycle >= epoch_intv) {
       #ifdef ORACLE
-      schedule_epoch(oracle, profOut, profIn);
+      schedule_epoch(oracle);
       #endif
       #ifndef ORACLE
-      schedule_epoch(history, profOut, profIn);
+      schedule_epoch(history);
       #endif
     }
 
@@ -426,16 +407,8 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef ORACLE
-  schedule_epoch(oracle, profOut, profIn);
+  schedule_epoch(oracle);
   printf("%-16s %9lu\n", "Oracle Time", oracle_time);
-#endif
-
-#ifdef ORACLE_PROFILE
-  fclose(profOut);
-#endif
-
-#ifdef ORACLE
-  fclose(profIn);
 #endif
 
   return 0;
