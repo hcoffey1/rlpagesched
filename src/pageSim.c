@@ -1,13 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
+#include <sys/cdefs.h>
 
 #define MAX_PAGES 1024
 #define TRUE 1
 #define FALSE 0
 
+#define ORACLE
+//#define ORACLE_PROFILE
+
 typedef unsigned int uint;
 typedef unsigned long ulong;
+
+enum SCHEDULER{history, oracle_profile, oracle, rl};
 
 uint total_physpages;
 uint total_virtpages;
@@ -27,11 +33,15 @@ ulong page_faults = 0;
 ulong diskrefs = 0;
 ulong page_hits = 0;
 ulong num_pages_ref = 0;
+ulong oracle_time = 0;
+
+uint FIRST = TRUE;
 
 struct {
   unsigned long phypage;   /* physical page number               */
   unsigned short resident; /* is page resident in memory         */
   unsigned short dirty;    /* has page been updated since loaded */
+  ulong mispredict;
 } page_table[MAX_PAGES];
 
 typedef struct phys_page{
@@ -42,6 +52,8 @@ typedef struct phys_page{
 } phys_page;
 
 phys_page phys_pages[MAX_PAGES];
+ulong ORACLE_HITS[MAX_PAGES];
+
 //Taken and modified from: https://www.geeksforgeeks.org/quick-sort/
 // A utility function to swap two elements 
 void swap(phys_page* a, phys_page* b) 
@@ -205,6 +217,7 @@ static int proc_page_lookup(char access_type, unsigned long address,
       /* update information for the newly resident virtual page */
       page_table[virtpage].phypage = j;
       phys_pages[j].virtpage = virtpage;
+      phys_pages[j].hits = 0;
       page_table[i].resident = FALSE;
       //phys_pages[page_table[i].phypage].virtpage = 0;
     }
@@ -295,12 +308,48 @@ int read_config(char *fileName) {
   return 0;
 }
 
-void schedule_epoch() {
+void schedule_epoch(enum SCHEDULER n, FILE * profOut, FILE * profIn) {
 
-  quickSort(phys_pages, 0, total_physpages-1);
-  for(int i = 0; i < total_physpages; i++)
-  {
-    page_table[phys_pages[i].virtpage].phypage = i;
+  switch (n) {
+    // History Page Scheduler
+  case history:
+    quickSort(phys_pages, 0, total_physpages - 1);
+    for (int i = 0; i < total_physpages; i++) {
+      page_table[phys_pages[i].virtpage].phypage = i;
+    }
+    break;
+
+  // Oracle Profiler
+  case oracle_profile:
+    if (__glibc_unlikely(FIRST)) {
+      FIRST = FALSE;
+      break;
+    }
+    for (int i = 0; i < total_physpages; i++) {
+      fwrite(&phys_pages[i].hits, sizeof(ulong), 1, profOut);
+    }
+    break;
+
+  // Oracle Scheduler
+  case oracle:
+    //fread(ORACLE_HITS, total_physpages, sizeof(ulong), profIn);
+    //for (int i = 0; i < total_physpages; i++) {
+      //phys_pages[i].hits = ORACLE_HITS[i];
+    //}
+    quickSort(phys_pages, 0, total_physpages - 1);
+    for (int i = 0; i < total_physpages; i++) {
+      page_table[phys_pages[i].virtpage].phypage = i;
+
+      if (i < m1_pages) {
+        oracle_time += m1_delay*phys_pages[i].hits;
+      } else {
+        oracle_time += m2_delay*phys_pages[i].hits;
+      }
+    }
+    break;
+
+  case rl:
+    break;
   }
 
 #if 0
@@ -310,7 +359,7 @@ void schedule_epoch() {
   }
 
   exit(1);
-  #endif
+#endif
 
   reset_lru();
   reset_page_hits();
@@ -320,7 +369,7 @@ void schedule_epoch() {
  * main - drives the cache simulator
  */
 int main(int argc, char **argv) {
-  FILE *f;
+  FILE *f = NULL, *profIn = NULL, *profOut = NULL;
   ulong instAddr, memAddr;
   uint cycle = 0;
   ulong time = 0;
@@ -337,11 +386,23 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+#ifdef ORACLE_PROFILE
+  profOut = fopen("oracle.profile", "wb");
+#endif
+
+#ifdef ORACLE
+  profIn = fopen("oracle.profile", "rb");
+#endif
 
   while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
 
     if (cycle >= epoch_intv) {
-      schedule_epoch();
+      #ifdef ORACLE
+      schedule_epoch(oracle, profOut, profIn);
+      #endif
+      #ifndef ORACLE
+      schedule_epoch(history, profOut, profIn);
+      #endif
     }
 
     memAddr &= addr_mask;
@@ -360,7 +421,22 @@ int main(int argc, char **argv) {
   printf("STATISTICS\n");
   printf("%-16s %9lu\n", "Page Hits", page_hits);
   printf("%-16s %9lu\n", "Page Faults", page_faults);
+#ifndef ORACLE
   printf("%-16s %9lu\n", "Time", time);
+#endif
+
+#ifdef ORACLE
+  schedule_epoch(oracle, profOut, profIn);
+  printf("%-16s %9lu\n", "Oracle Time", oracle_time);
+#endif
+
+#ifdef ORACLE_PROFILE
+  fclose(profOut);
+#endif
+
+#ifdef ORACLE
+  fclose(profIn);
+#endif
 
   return 0;
 }
