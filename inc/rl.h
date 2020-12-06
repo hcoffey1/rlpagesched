@@ -20,10 +20,11 @@ typedef struct policy {
 } policy;
 */
 typedef struct qvalue{
-    double ***Q;
+    double * Q;
     ulong x,y,z;
 }qvalue;
 
 
-ACTION rl_schedule_page(state s, qvalue Q);
+ACTION rl_schedule_page(state * s, qvalue * Q);
+void updateQValue(ulong index, int ps_count, state * s, qvalue * Q, long reward);
 #endif

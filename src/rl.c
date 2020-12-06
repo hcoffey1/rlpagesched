@@ -49,21 +49,35 @@ get_Q(old_state, action))
 // current device, hits, maybe hits from earlier epoch as well?
 
 
-ACTION getAction(state s, qvalue Q) { return m1; }
 
-void setQValue(state s, qvalue Q, double update) {
-    Q.Q[s.old_device][s.hits*Q.x][s.new_device*Q.x*Q.y] = update;
+void setQValue(state s, qvalue * Q, double update) {
+    Q->Q[s.old_device + s.hits*Q->x + s.new_device*Q->x*Q->y] = update;
     //Q.Q[s.old_device][s.hits*Q.x][s.new_device*Q.x*Q.y] = q + lr * (prev_reward + discount*Q.Q[s.new_device][])
 }
 
 double getQValue(state s, qvalue Q) {
-    return Q.Q[s.old_device][s.hits*Q.x][s.new_device*Q.x*Q.y];
+    return Q.Q[s.old_device + s.hits*Q.x + s.new_device*Q.x*Q.y];
+}
+
+void updateQValue(ulong index, int ps_count, state * s, qvalue * Q, long reward)
+{   
+    double q = getQValue(s[index], *Q);
+    double q_new = getQValue(s[index + ps_count], *Q);
+    double update = q + lr * (reward + discount*q_new - q);
+    setQValue(s[index], Q, update);
+    //double q = Q->Q[s[index + ps_count*0].old_device][s[index + ps_count*0].hits*Q->x][s[index + ps_count*0].new_device*Q->x*Q->y];
+    //Q->Q[s.old_device][s.hits*Q->x][s.new_device*Q->x*Q->y] = q + lr * (reward + discount*Q->Q[s.new_device][])
+}
+
+ACTION getAction(state s, qvalue Q) {
+  double m1_q = getQValue(s, Q);
+  double m2_q = getQValue(s, Q);
+
+  return (m1_q > m2_q) ? m1 : m2;
 }
 
 // Make decision for page
-ACTION rl_schedule_page(state s, qvalue Q) {
-    return getAction(s, Q);
-}
+ACTION rl_schedule_page(state *s, qvalue *Q) { return getAction(*s, *Q); }
 // Actions
 // Place in m1
 // Place in m2

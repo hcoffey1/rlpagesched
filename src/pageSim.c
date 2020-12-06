@@ -5,6 +5,7 @@
 #include <sys/cdefs.h>
 
 #define MAX_PAGES 1024
+#define HIT_DIV 100
 #define TRUE 1
 #define FALSE 0
 
@@ -53,6 +54,7 @@ struct {
   unsigned short dirty;    /* has page been updated since loaded */
   ulong mispredict;
   ulong total_hits;
+  unsigned int chosen_index;
 } page_table[MAX_PAGES];
 
 typedef struct phys_page {
@@ -365,6 +367,15 @@ void history_scheduler() {
 
 void schedule_epoch(enum SCHEDULER n) {
   ulong hits;
+  int m1_c = 0, m2_c = m1_pages;
+  int ps_index;
+  int ps_epoch = 0;
+  int j = 0;
+  int z = 0;
+  int matched = FALSE;
+  long epoch_delay = 0;
+  phys_page * phys_pages_buf;
+  phys_page * selec_page_buf;
   switch (n) {
     // History Page Schedule    state x;r
   case history:
@@ -387,15 +398,159 @@ void schedule_epoch(enum SCHEDULER n) {
 
   // Hopefully we do some RL here?
   case rl:
-    for(int i = 0; i < ps_count; i++)
-    {
-      //hits = 
 
+    //Calculate delay over past epoch
+    for (int page = 0; page < total_physpages; page++) {
+      if (page < m1_pages) {
+        epoch_delay += m1_delay * phys_pages[page].epoch_hits;
+      } else {
+        epoch_delay += m2_delay * phys_pages[page].epoch_hits;
+      }
     }
-    //RL for selected pages, remainder will use history
-    //rl_schedule_page(state s, qvalue Q)
-    break;
-  }
+
+    // Calculate how many selected pages are present
+    for (int i = 0; i < total_physpages; i++) {
+
+      matched = FALSE;
+      for (int k = 0; k < ps_count; k++) {
+        if (selected_pages[k] == phys_pages[i].virtpage) {
+          matched = TRUE;
+          ps_index = k;
+          break;
+        }
+      }
+
+      if (matched) {
+        ps_epoch++;
+      }
+    }
+
+    // Allocate buffer, copy over pages not chosen, and sort
+    phys_pages_buf = malloc(sizeof(phys_page) * (total_physpages - ps_epoch));
+    selec_page_buf = malloc(sizeof(phys_page) * ps_epoch);
+
+    j = z = 0;
+    for (int i = 0; i < total_physpages; i++) {
+
+      matched = FALSE;
+      for (int k = 0; k < ps_count; k++) {
+        if (selected_pages[k] == phys_pages[i].virtpage) {
+          matched = TRUE;
+          selec_page_buf[z] = phys_pages[i];
+          page_table[selec_page_buf[z].virtpage].chosen_index = k;
+          z++;
+          break;
+        }
+      }
+
+      if (matched) {
+        continue;
+      }
+
+      phys_pages_buf[j] = phys_pages[i];
+      j++;
+    }
+
+    // Sort non-selected pages
+    quickSort(phys_pages_buf, 0, total_physpages - 1 - ps_epoch);
+
+    // Make decisions for selected pages
+    for (int i = 0; i < ps_epoch; i++) {
+      ps_index = page_table[selec_page_buf[i].virtpage].chosen_index;
+      hits = selec_page_buf[i].epoch_hits;
+      // phys_pages[page_table[selec_page_buf[i].virtpage].phypage].epoch_hits;
+
+      // New state
+      sp_states[ps_index + ps_count].hits = hits / HIT_DIV;
+      sp_states[ps_index + ps_count].old_device =
+          page_table[selected_pages[ps_index]].phypage / m1_pages;
+      sp_states[ps_index + ps_count].new_device =
+          rl_schedule_page(&sp_states[ps_index], &sp_qval[ps_index]);
+
+      updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay);
+
+      // Update old State
+      sp_states[ps_index] = sp_states[ps_index + ps_count];
+
+      if (sp_states[ps_index].old_device == m1) {
+        phys_pages[m1_c] = selec_page_buf[i];
+        page_table[phys_pages[i].virtpage].phypage = m1_c;
+        m1_c++;
+      } else {
+        phys_pages[m2_c] = selec_page_buf[i];
+        page_table[phys_pages[i].virtpage].phypage = m2_c;
+        m2_c++;
+      }
+    }
+
+    for (int i = 0; i < total_physpages - ps_epoch; i++) {
+      if (m1_c < m1_pages) {
+        phys_pages[m1_c] = phys_pages_buf[i];
+
+        // Update physpage number
+        page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
+        m1_c++;
+      } else {
+        phys_pages[m2_c] = phys_pages_buf[i];
+
+        // Update physpage number
+        page_table[phys_pages[m2_c].virtpage].phypage =  m2_c;
+        m2_c++;
+      }
+    }
+
+// printf("%d\n", ps_epoch);
+#if 0
+    // Allocate buffer, copy over pages not chosen, and sort
+    phys_pages_buf = malloc(sizeof(phys_page) * (total_physpages - ps_epoch));
+
+    for (int i = 0; i < total_physpages; i++) {
+
+      matched = FALSE;
+      for (int k = 0; k < ps_count; k++) {
+        if (selected_pages[k] == phys_pages[i].virtpage) {
+          matched = TRUE;
+        }
+      }
+
+      if (matched) {
+        continue;
+        printf("Skipping!\n");
+      }
+
+      phys_pages_buf[j] = phys_pages[i];
+      j++;
+    }
+    quickSort(phys_pages_buf, 0, total_physpages - 1 - ps_epoch);
+
+    for (int i = 0; i < total_physpages - ps_count; i++) {
+      // printf("%lu\n", phys_pages_buf[i].epoch_hits);
+    }
+    // exit(1);
+
+    for (int i = 0; i < total_physpages - ps_epoch; i++) {
+      if (i + m1_c < m1_pages) {
+        phys_pages[i + m1_c] = phys_pages_buf[i];
+
+        // Update physpage number
+        page_table[phys_pages[i + m1_c].virtpage].phypage = i + m1_c;
+      } else {
+        phys_pages[i + m2_c] = phys_pages_buf[i];
+
+        // Update physpage number
+        page_table[phys_pages[i + m2_c].virtpage].phypage = i + m2_c;
+      }
+    }
+
+    // memcpy(phys_pages_buf, phys_pages, sizeof(phys_page)*total_physpages);
+
+    // RL for selected pages, remainder will use history
+    // rl_schedule_page(state s, qvalue Q)
+#endif
+      free(phys_pages_buf);
+      free(selec_page_buf);
+      break;
+    }
 
 #if 0
   for(int i = 0; i < total_physpages; i++)
@@ -406,35 +561,41 @@ void schedule_epoch(enum SCHEDULER n) {
   exit(1);
 #endif
 
-  reset_lru();
-  reset_page_hits();
-}
-
-void page_selector(char *fileName) {
-
-  // Read in benefit data
-  FILE *f = fopen(fileName, "rb");
-  ulong *benefitArray = malloc(sizeof(ulong) * total_virtpages);
-  fread(benefitArray, total_virtpages, sizeof(ulong), f);
-  fclose(f);
-
-  // Associate benefit data with VPNs
-  struct page_record *records =
-      malloc(sizeof(struct page_record) * total_virtpages);
-  for (int i = 0; i < total_virtpages; i++) {
-    records[i].benefit = benefitArray[i];
-    records[i].vpn = i;
+    reset_lru();
+    reset_page_hits();
   }
 
-  selected_pages = malloc(sizeof(ulong) * ps_count);
-  sp_states = malloc(sizeof(state)*ps_count);
-  sp_qval = malloc(sizeof(qvalue)*ps_count);
+  void page_selector(char *fileName) {
 
-  quickSort_pr(records, 0, total_virtpages - 1);
+    // Read in benefit data
+    FILE *f = fopen(fileName, "rb");
+    ulong *benefitArray = malloc(sizeof(ulong) * total_virtpages);
+    fread(benefitArray, total_virtpages, sizeof(ulong), f);
+    fclose(f);
 
-  for (int i = 0; i < ps_count; i++) {
-    selected_pages[i] = records[i].vpn;
-  }
+    // Associate benefit data with VPNs
+    struct page_record *records =
+        malloc(sizeof(struct page_record) * total_virtpages);
+    for (int i = 0; i < total_virtpages; i++) {
+      records[i].benefit = benefitArray[i];
+      records[i].vpn = i;
+    }
+
+    selected_pages = malloc(sizeof(ulong) * ps_count);
+    sp_states = malloc(sizeof(state) * ps_count * 2);
+    sp_qval = malloc(sizeof(qvalue) * ps_count);
+
+    quickSort_pr(records, 0, total_virtpages - 1);
+
+    for (int i = 0; i < ps_count; i++) {
+      selected_pages[i] = records[i].vpn;
+
+      // Initialize Q values for each page
+      sp_qval[i].Q = malloc(sizeof(double) * (1000 / HIT_DIV) * 2 * 2);
+      sp_qval[i].x = (1000 / HIT_DIV);
+      sp_qval[i].y = 2;
+      sp_qval[i].z = 2;
+    }
 #if 0
   for (int i = 0; i < total_virtpages; i++) {
     printf("%16lu : %16lu\n", records[i].vpn, records[i].benefit);
@@ -442,65 +603,66 @@ void page_selector(char *fileName) {
   exit(1);
 #endif
 
-  free(benefitArray);
-  free(records);
-}
-
-/*
- * main - drives the cache simulator
- */
-int main(int argc, char **argv) {
-  FILE *f = NULL, *benLog;
-  ulong instAddr, memAddr;
-  uint cycle = 0;
-  ulong time = 0;
-  uint page;
-  char accessType;
-
-  if (read_config(argv[1]) != 0) {
-    return 1;
+    free(benefitArray);
+    free(records);
   }
 
-  f = fopen(argv[2], "r");
-  if (f == NULL) {
-    printf("Failed to open trace file\n");
-    return 1;
-  }
+  /*
+   * main - drives the cache simulator
+   */
+  int main(int argc, char **argv) {
+    FILE *f = NULL, *benLog;
+    ulong instAddr, memAddr;
+    uint cycle = 0;
+    ulong time = 0;
+    uint page;
+    char accessType;
 
-  page_selector("benefit.log");
+    if (read_config(argv[1]) != 0) {
+      return 1;
+    }
 
-  while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
+    f = fopen(argv[2], "r");
+    if (f == NULL) {
+      printf("Failed to open trace file\n");
+      return 1;
+    }
 
-    if (cycle >= epoch_intv) {
+    page_selector("benefit.log");
+
+    while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) !=
+           EOF) {
+
+      if (cycle >= epoch_intv) {
 #ifdef ORACLE
-      schedule_epoch(oracle);
+        schedule_epoch(oracle);
 #endif
 #ifndef ORACLE
-      schedule_epoch(history);
+        schedule_epoch(rl);
 #endif
+      }
+
+      memAddr &= addr_mask;
+      proc_page_lookup(accessType, memAddr, &page);
+      phys_pages[page].epoch_hits++;
+      page_table[phys_pages[page].virtpage].total_hits++;
+
+      if (page < m1_pages) {
+        time += m1_delay;
+      } else {
+        time += m2_delay;
+      }
+
+      cycle++;
     }
 
-    memAddr &= addr_mask;
-    proc_page_lookup(accessType, memAddr, &page);
-    phys_pages[page].epoch_hits++;
-    page_table[phys_pages[page].virtpage].total_hits++;
-
-    if (page < m1_pages) {
-      time += m1_delay;
-    } else {
-      time += m2_delay;
-    }
-
-    cycle++;
-  }
-
-  printf("STATISTICS\n");
-  printf("%-16s %9lu\n", "Page Hits", page_hits);
-  printf("%-16s %9lu\n", "Page Faults", page_faults);
+    printf("STATISTICS\n");
+    printf("%-16s %9lu\n", "Page Hits", page_hits);
+    printf("%-16s %9lu\n", "Page Faults", page_faults);
 #ifndef ORACLE
-  printf("%-16s %9lu\n", "Time", time);
+    printf("%-16s %9lu\n", "Time", time);
 
-#if 1
+#if 0
   benLog = fopen("benefit.log", "wb");
   for (int i = 0; i < total_virtpages; i++) {
     ulong tmp = (page_table[i].mispredict * page_table[i].total_hits);
@@ -512,13 +674,13 @@ int main(int argc, char **argv) {
 #endif
 
 #ifdef ORACLE
-  schedule_epoch(oracle);
-  printf("%-16s %9lu\n", "Oracle Time", oracle_time);
+    schedule_epoch(oracle);
+    printf("%-16s %9lu\n", "Oracle Time", oracle_time);
 #endif
 
-  if (selected_pages != NULL) {
-    free(selected_pages);
-  }
+    if (selected_pages != NULL) {
+      free(selected_pages);
+    }
 
-  return 0;
-}
+    return 0;
+  }
