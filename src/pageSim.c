@@ -1,8 +1,8 @@
+#include "rl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
 #include <sys/cdefs.h>
-#include "rl.h"
 
 #define MAX_PAGES 1024
 #define TRUE 1
@@ -13,7 +13,7 @@
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-enum SCHEDULER{history, oracle, rl};
+enum SCHEDULER { history, oracle, rl };
 
 uint total_physpages;
 uint total_virtpages;
@@ -21,6 +21,9 @@ uint m1_pages;
 uint m2_pages;
 uint m1_delay;
 uint m2_delay;
+
+uint ps_count;
+ulong *selected_pages;
 
 uint epoch_intv;
 
@@ -37,6 +40,11 @@ ulong oracle_time = 0;
 
 uint FIRST = TRUE;
 
+typedef struct page_record {
+  ulong benefit;
+  ulong vpn;
+} page_record;
+
 struct {
   unsigned long phypage;   /* physical page number               */
   unsigned short resident; /* is page resident in memory         */
@@ -45,8 +53,8 @@ struct {
   ulong total_hits;
 } page_table[MAX_PAGES];
 
-typedef struct phys_page{
-  //uint index;
+typedef struct phys_page {
+  // uint index;
   ulong virtpage;
   ulong lru;
   ulong epoch_hits;
@@ -55,60 +63,84 @@ typedef struct phys_page{
 phys_page phys_pages[MAX_PAGES];
 ulong ORACLE_HITS[MAX_PAGES];
 
-//Taken and modified from: https://www.geeksforgeeks.org/quick-sort/
-// A utility function to swap two elements 
-void swap(phys_page* a, phys_page* b) 
-{ 
-    phys_page t = *a; 
-    *a = *b; 
-    //a->index = t.index;
-    //t.index = b->index;
-    *b = t; 
-} 
+// Taken and modified from: https://www.geeksforgeeks.org/quick-sort/
+// A utility function to swap two elements
+void swap(phys_page *a, phys_page *b) {
+  phys_page t = *a;
+  *a = *b;
+  *b = t;
+}
+void swap_pr(page_record *a, page_record *b) {
+  page_record t = *a;
+  *a = *b;
+  *b = t;
+}
 #if 1
-/* This function takes last element as pivot, places 
-   the pivot element at its correct position in sorted 
-    array, and places all smaller (smaller than pivot) 
-   to left of pivot and all greater elements to right 
+/* This function takes last element as pivot, places
+   the pivot element at its correct position in sorted
+    array, and places all smaller (smaller than pivot)
+   to left of pivot and all greater elements to right
    of pivot */
-int partition (phys_page * arr, int low, int high) 
-{ 
-    int pivot = arr[high].epoch_hits;    // pivot 
-    int i = (low - 1);  // Index of smaller element 
-  
-    for (int j = low; j <= high- 1; j++) 
-    { 
-        // If current element is smaller than the pivot 
-        if (arr[j].epoch_hits > pivot) 
-        { 
-            i++;    // increment index of smaller element 
-            swap(&arr[i], &arr[j]); 
-        } 
-    } 
-    swap(&arr[i + 1], &arr[high]); 
-    return (i + 1); 
-} 
-  
-/* The main function that implements QuickSort 
- arr[] --> Array to be sorted, 
-  low  --> Starting index, 
-  high  --> Ending index */
-void quickSort(phys_page * arr, int low, int high) 
-{ 
-    if (low < high) 
-    { 
-        /* pi is partitioning index, arr[p] is now 
-           at right place */
-        int pi = partition(arr, low, high); 
-  
-        // Separately sort elements before 
-        // partition and after partition 
-        quickSort(arr, low, pi - 1); 
-        quickSort(arr, pi + 1, high); 
-    } 
-} 
- #endif 
+int partition(phys_page *arr, int low, int high) {
+  int pivot = arr[high].epoch_hits; // pivot
+  int i = (low - 1);                // Index of smaller element
 
+  for (int j = low; j <= high - 1; j++) {
+    // If current element is smaller than the pivot
+    if (arr[j].epoch_hits > pivot) {
+      i++; // increment index of smaller element
+      swap(&arr[i], &arr[j]);
+    }
+  }
+  swap(&arr[i + 1], &arr[high]);
+  return (i + 1);
+}
+
+int partition_pr(page_record *arr, int low, int high) {
+  ulong pivot = arr[high].benefit; // pivot
+  int i = (low - 1);               // Index of smaller element
+
+  for (int j = low; j <= high - 1; j++) {
+    // If current element is smaller than the pivot
+    if (arr[j].benefit > pivot) {
+      i++; // increment index of smaller element
+      swap_pr(&arr[i], &arr[j]);
+    }
+  }
+  swap_pr(&arr[i + 1], &arr[high]);
+  return (i + 1);
+}
+
+/* The main function that implements QuickSort
+ arr[] --> Array to be sorted,
+  low  --> Starting index,
+  high  --> Ending index */
+void quickSort(phys_page *arr, int low, int high) {
+  if (low < high) {
+    /* pi is partitioning index, arr[p] is now
+       at right place */
+    int pi = partition(arr, low, high);
+
+    // Separately sort elements before
+    // partition and after partition
+    quickSort(arr, low, pi - 1);
+    quickSort(arr, pi + 1, high);
+  }
+}
+
+void quickSort_pr(page_record *arr, int low, int high) {
+  if (low < high) {
+    /* pi is partitioning index, arr[p] is now
+       at right place */
+    int pi = partition_pr(arr, low, high);
+
+    // Separately sort elements before
+    // partition and after partition
+    quickSort_pr(arr, low, pi - 1);
+    quickSort_pr(arr, pi + 1, high);
+  }
+}
+#endif
 
 /*
  * logtwo - return log2 of argument
@@ -187,12 +219,10 @@ static int proc_page_lookup(char access_type, unsigned long address,
     diskrefs++;
 
     /* if the all of the physical pages have not yet been used */
-    if (num_pages_ref < total_physpages)
-    {
+    if (num_pages_ref < total_physpages) {
       page_table[virtpage].phypage = num_pages_ref++;
       phys_pages[page_table[virtpage].phypage].virtpage = virtpage;
-    }
-    else {
+    } else {
 
       /* find the least recently accessed physical page */
       lru = 0;
@@ -220,7 +250,7 @@ static int proc_page_lookup(char access_type, unsigned long address,
       phys_pages[j].virtpage = virtpage;
       phys_pages[j].epoch_hits = 0;
       page_table[i].resident = FALSE;
-      //phys_pages[page_table[i].phypage].virtpage = 0;
+      // phys_pages[page_table[i].phypage].virtpage = 0;
     }
 
     /* mark the page as resident and that it is not dirty */
@@ -304,6 +334,11 @@ int read_config(char *fileName) {
     return -1;
   }
 
+  if (fscanf(f, "Page Select:\t%u\n", &ps_count) != 1) {
+    fprintf(stderr, "Failed to read in page select count.\n");
+    return -1;
+  }
+
   fclose(f);
 
   return 0;
@@ -365,6 +400,40 @@ void schedule_epoch(enum SCHEDULER n) {
   reset_page_hits();
 }
 
+void page_selector(char *fileName) {
+
+  // Read in benefit data
+  FILE *f = fopen(fileName, "rb");
+  ulong *benefitArray = malloc(sizeof(ulong) * total_virtpages);
+  fread(benefitArray, total_virtpages, sizeof(ulong), f);
+  fclose(f);
+
+  // Associate benefit data with VPNs
+  struct page_record *records =
+      malloc(sizeof(struct page_record) * total_virtpages);
+  for (int i = 0; i < total_virtpages; i++) {
+    records[i].benefit = benefitArray[i];
+    records[i].vpn = i;
+  }
+
+  selected_pages = malloc(sizeof(ulong) * ps_count);
+
+  quickSort_pr(records, 0, total_virtpages - 1);
+
+  for (int i = 0; i < ps_count; i++) {
+    selected_pages[i] = records[i].vpn;
+  }
+#if 0
+  for (int i = 0; i < total_virtpages; i++) {
+    printf("%16lu : %16lu\n", records[i].vpn, records[i].benefit);
+  }
+  exit(1);
+#endif
+
+  free(benefitArray);
+  free(records);
+}
+
 /*
  * main - drives the cache simulator
  */
@@ -385,6 +454,8 @@ int main(int argc, char **argv) {
     printf("Failed to open trace file\n");
     return 1;
   }
+
+  page_selector("benefit.log");
 
   while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
 
@@ -420,8 +491,9 @@ int main(int argc, char **argv) {
 #if 1
   benLog = fopen("benefit.log", "wb");
   for (int i = 0; i < total_virtpages; i++) {
-    int tmp = (page_table[i].mispredict * page_table[i].total_hits);
-    fwrite(&tmp, 1, sizeof(ulong), benLog);
+    ulong tmp = (page_table[i].mispredict * page_table[i].total_hits);
+    //    printf("%lu\n", tmp);
+    fwrite(&tmp, sizeof(ulong), 1, benLog);
   }
   fclose(benLog);
 #endif
