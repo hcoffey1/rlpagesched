@@ -2,13 +2,13 @@
 #include <stdlib.h>
 #include <strings.h>
 #include <sys/cdefs.h>
+#include "rl.h"
 
 #define MAX_PAGES 1024
 #define TRUE 1
 #define FALSE 0
 
 #define ORACLE
-//#define ORACLE_PROFILE
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -319,12 +319,8 @@ void schedule_epoch(enum SCHEDULER n) {
     }
     break;
 
-  // Oracle Scheduler
+  // Oracle Scheduler, best case scenario
   case oracle:
-    //fread(ORACLE_HITS, total_physpages, sizeof(ulong), profIn);
-    //for (int i = 0; i < total_physpages; i++) {
-      //phys_pages[i].hits = ORACLE_HITS[i];
-    //}
     quickSort(phys_pages, 0, total_physpages - 1);
     for (int i = 0; i < total_physpages; i++) {
       page_table[phys_pages[i].virtpage].phypage = i;
@@ -337,6 +333,7 @@ void schedule_epoch(enum SCHEDULER n) {
     }
     break;
 
+  //Hopefully we do some RL here?
   case rl:
     break;
   }
