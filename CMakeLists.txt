@@ -7,4 +7,4 @@ project(rlpagesched VERSION 1.0)
 #Executable
 add_executable(pagesim ./src/pageSim.c)
 
-target_include_directories(pagesim PRIVATE ./src/inc)
+target_include_directories(pagesim PRIVATE ./inc)
