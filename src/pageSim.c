@@ -14,7 +14,7 @@
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-enum SCHEDULER { history, oracle, rl };
+typedef enum SCHEDULER { history, oracle, rl } SCHEDULER;
 
 uint total_physpages;
 uint total_virtpages;
@@ -568,6 +568,13 @@ int main(int argc, char **argv) {
   ulong time = 0;
   uint page;
   char accessType;
+  SCHEDULER scheduler;
+
+  if(argc != 4)
+  {
+    printf("Usage %s : config.file trace.file scheduler\n", argv[0]);
+    return 1;
+  }
 
   if (read_config(argv[1]) != 0) {
     return 1;
@@ -579,17 +586,16 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  page_selector("benefit.log");
+  scheduler = atoi(argv[3]);
+
+  if (scheduler == rl) {
+    page_selector("benefit.log");
+  }
 
   while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
 
     if (cycle >= epoch_intv) {
-#ifdef ORACLE
-      schedule_epoch(oracle);
-#endif
-#ifndef ORACLE
-      schedule_epoch(rl);
-#endif
+      schedule_epoch(scheduler);
     }
 
     memAddr &= addr_mask;
@@ -609,8 +615,12 @@ int main(int argc, char **argv) {
   printf("STATISTICS\n");
   printf("%-16s %9lu\n", "Page Hits", page_hits);
   printf("%-16s %9lu\n", "Page Faults", page_faults);
-#ifndef ORACLE
-  printf("%-16s %9lu\n", "Time", time);
+  if (scheduler != oracle) {
+    printf("%-16s %9lu\n", "Time", time);
+  } else {
+    schedule_epoch(oracle);
+    printf("%-16s %9lu\n", "Oracle Time", oracle_time);
+  }
 
 #if 0
   benLog = fopen("benefit.log", "wb");
@@ -620,12 +630,6 @@ int main(int argc, char **argv) {
     fwrite(&tmp, sizeof(ulong), 1, benLog);
   }
   fclose(benLog);
-#endif
-#endif
-
-#ifdef ORACLE
-  schedule_epoch(oracle);
-  printf("%-16s %9lu\n", "Oracle Time", oracle_time);
 #endif
 
   if (selected_pages != NULL) {
