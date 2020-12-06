@@ -1,4 +1,4 @@
-Virt Pages: 1024
+Virt Pages: 128
 Page Total: 64
 M1:         32
 M1 Delay:   1 

@@ -8,7 +8,7 @@
 #define TRUE 1
 #define FALSE 0
 
-#define ORACLE
+//#define ORACLE
 
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -42,13 +42,14 @@ struct {
   unsigned short resident; /* is page resident in memory         */
   unsigned short dirty;    /* has page been updated since loaded */
   ulong mispredict;
+  ulong total_hits;
 } page_table[MAX_PAGES];
 
 typedef struct phys_page{
   //uint index;
   ulong virtpage;
   ulong lru;
-  ulong hits;
+  ulong epoch_hits;
 } phys_page;
 
 phys_page phys_pages[MAX_PAGES];
@@ -72,13 +73,13 @@ void swap(phys_page* a, phys_page* b)
    of pivot */
 int partition (phys_page * arr, int low, int high) 
 { 
-    int pivot = arr[high].hits;    // pivot 
+    int pivot = arr[high].epoch_hits;    // pivot 
     int i = (low - 1);  // Index of smaller element 
   
     for (int j = low; j <= high- 1; j++) 
     { 
         // If current element is smaller than the pivot 
-        if (arr[j].hits > pivot) 
+        if (arr[j].epoch_hits > pivot) 
         { 
             i++;    // increment index of smaller element 
             swap(&arr[i], &arr[j]); 
@@ -145,7 +146,7 @@ void reset_lru() {
 
 void reset_page_hits() {
   for (int i = 0; i < total_physpages; i++) {
-    phys_pages[i].hits = 0;
+    phys_pages[i].epoch_hits = 0;
   }
 }
 
@@ -217,7 +218,7 @@ static int proc_page_lookup(char access_type, unsigned long address,
       /* update information for the newly resident virtual page */
       page_table[virtpage].phypage = j;
       phys_pages[j].virtpage = virtpage;
-      phys_pages[j].hits = 0;
+      phys_pages[j].epoch_hits = 0;
       page_table[i].resident = FALSE;
       //phys_pages[page_table[i].phypage].virtpage = 0;
     }
@@ -308,15 +309,28 @@ int read_config(char *fileName) {
   return 0;
 }
 
-void schedule_epoch(enum SCHEDULER n) {
+void history_scheduler() {
+  int tmp_phypage;
+  quickSort(phys_pages, 0, total_physpages - 1);
+  for (int i = 0; i < total_physpages; i++) {
 
+    // Calculate mispredictions
+    tmp_phypage = page_table[phys_pages[i].virtpage].phypage;
+    if ((tmp_phypage < m1_pages && i >= m1_pages) ||
+        (tmp_phypage >= m1_pages && i < m1_pages)) {
+      page_table[phys_pages[i].virtpage].mispredict++;
+    }
+
+    // Update physpage number
+    page_table[phys_pages[i].virtpage].phypage = i;
+  }
+}
+
+void schedule_epoch(enum SCHEDULER n) {
   switch (n) {
     // History Page Scheduler
   case history:
-    quickSort(phys_pages, 0, total_physpages - 1);
-    for (int i = 0; i < total_physpages; i++) {
-      page_table[phys_pages[i].virtpage].phypage = i;
-    }
+    history_scheduler();
     break;
 
   // Oracle Scheduler, best case scenario
@@ -326,14 +340,14 @@ void schedule_epoch(enum SCHEDULER n) {
       page_table[phys_pages[i].virtpage].phypage = i;
 
       if (i < m1_pages) {
-        oracle_time += m1_delay*phys_pages[i].hits;
+        oracle_time += m1_delay * phys_pages[i].epoch_hits;
       } else {
-        oracle_time += m2_delay*phys_pages[i].hits;
+        oracle_time += m2_delay * phys_pages[i].epoch_hits;
       }
     }
     break;
 
-  //Hopefully we do some RL here?
+  // Hopefully we do some RL here?
   case rl:
     break;
   }
@@ -355,7 +369,7 @@ void schedule_epoch(enum SCHEDULER n) {
  * main - drives the cache simulator
  */
 int main(int argc, char **argv) {
-  FILE *f = NULL;
+  FILE *f = NULL, *benLog;
   ulong instAddr, memAddr;
   uint cycle = 0;
   ulong time = 0;
@@ -375,17 +389,18 @@ int main(int argc, char **argv) {
   while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
 
     if (cycle >= epoch_intv) {
-      #ifdef ORACLE
+#ifdef ORACLE
       schedule_epoch(oracle);
-      #endif
-      #ifndef ORACLE
+#endif
+#ifndef ORACLE
       schedule_epoch(history);
-      #endif
+#endif
     }
 
     memAddr &= addr_mask;
     proc_page_lookup(accessType, memAddr, &page);
-    phys_pages[page].hits++;
+    phys_pages[page].epoch_hits++;
+    page_table[phys_pages[page].virtpage].total_hits++;
 
     if (page < m1_pages) {
       time += m1_delay;
@@ -401,6 +416,15 @@ int main(int argc, char **argv) {
   printf("%-16s %9lu\n", "Page Faults", page_faults);
 #ifndef ORACLE
   printf("%-16s %9lu\n", "Time", time);
+
+#if 1
+  benLog = fopen("benefit.log", "wb");
+  for (int i = 0; i < total_virtpages; i++) {
+    int tmp = (page_table[i].mispredict * page_table[i].total_hits);
+    fwrite(&tmp, 1, sizeof(ulong), benLog);
+  }
+  fclose(benLog);
+#endif
 #endif
 
 #ifdef ORACLE
