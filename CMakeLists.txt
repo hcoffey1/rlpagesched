@@ -5,6 +5,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 project(rlpagesched VERSION 1.0)
 
 #Executable
-add_executable(pagesim ./src/pageSim.c)
+add_executable(pagesim ./src/pageSim.c ./src/rl.c)
 
 target_include_directories(pagesim PRIVATE ./inc)

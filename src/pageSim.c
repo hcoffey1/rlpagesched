@@ -24,6 +24,8 @@ uint m2_delay;
 
 uint ps_count;
 ulong *selected_pages = NULL;
+state *sp_states = NULL;
+qvalue *sp_qval = NULL;
 
 uint epoch_intv;
 
@@ -362,8 +364,9 @@ void history_scheduler() {
 }
 
 void schedule_epoch(enum SCHEDULER n) {
+  ulong hits;
   switch (n) {
-    // History Page Scheduler
+    // History Page Schedule    state x;r
   case history:
     history_scheduler();
     break;
@@ -384,8 +387,13 @@ void schedule_epoch(enum SCHEDULER n) {
 
   // Hopefully we do some RL here?
   case rl:
+    for(int i = 0; i < ps_count; i++)
+    {
+      //hits = 
 
+    }
     //RL for selected pages, remainder will use history
+    //rl_schedule_page(state s, qvalue Q)
     break;
   }
 
@@ -419,6 +427,8 @@ void page_selector(char *fileName) {
   }
 
   selected_pages = malloc(sizeof(ulong) * ps_count);
+  sp_states = malloc(sizeof(state)*ps_count);
+  sp_qval = malloc(sizeof(qvalue)*ps_count);
 
   quickSort_pr(records, 0, total_virtpages - 1);
 
