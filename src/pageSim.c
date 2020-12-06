@@ -23,7 +23,7 @@ uint m1_delay;
 uint m2_delay;
 
 uint ps_count;
-ulong *selected_pages;
+ulong *selected_pages = NULL;
 
 uint epoch_intv;
 
@@ -503,6 +503,10 @@ int main(int argc, char **argv) {
   schedule_epoch(oracle);
   printf("%-16s %9lu\n", "Oracle Time", oracle_time);
 #endif
+
+  if (selected_pages != NULL) {
+    free(selected_pages);
+  }
 
   return 0;
 }
