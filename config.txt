@@ -1,8 +1,8 @@
 Virt Pages: 128
-Page Total: 64
-M1:         32
+Page Total: 32
+M1:         16
 M1 Delay:   1 
-M2:         32 
+M2:         16
 M2 Delay:   10 
 Page Size:  512
 Addr Size:  16 

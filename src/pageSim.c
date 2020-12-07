@@ -242,6 +242,8 @@ static int proc_page_lookup(char access_type, unsigned long address,
           break;
       if (i == total_virtpages) {
         fprintf(stderr, "could not find physical page in page table\n");
+        // printf("%d\n", j);
+        // exit(1);
       }
 
       /* if the page is dirty, then increment the number of disk
@@ -425,6 +427,7 @@ void schedule_epoch(enum SCHEDULER n) {
       }
     }
 
+    // printf("%d %d\n", ps_epoch, ps_count);
     // Allocate buffer, copy over pages not chosen, and sort
     phys_pages_buf = malloc(sizeof(phys_page) * (total_physpages - ps_epoch));
     selec_page_buf = malloc(sizeof(phys_page) * ps_epoch);
@@ -454,6 +457,7 @@ void schedule_epoch(enum SCHEDULER n) {
     // Sort non-selected pages
     quickSort(phys_pages_buf, 0, total_physpages - 1 - ps_epoch);
 
+#if 1
     // Make decisions for selected pages
     for (int i = 0; i < ps_epoch; i++) {
       ps_index = page_table[selec_page_buf[i].virtpage].chosen_index;
@@ -467,6 +471,11 @@ void schedule_epoch(enum SCHEDULER n) {
       sp_states[ps_index + ps_count].new_device =
           rl_schedule_page(&sp_states[ps_index], &sp_qval[ps_index]);
 
+      //if (sp_states[ps_index + ps_count].new_device == 0)
+      //{
+        //printf("Action : %d\n", sp_states[ps_index + ps_count].new_device);
+        //exit(1);
+      //}
       updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay);
 
       // Update old State
@@ -474,20 +483,22 @@ void schedule_epoch(enum SCHEDULER n) {
 
       if (sp_states[ps_index].old_device == m1) {
         phys_pages[m1_c] = selec_page_buf[i];
-        page_table[phys_pages[i].virtpage].phypage = m1_c;
+        page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
         m1_c++;
       } else {
         phys_pages[m2_c] = selec_page_buf[i];
-        page_table[phys_pages[i].virtpage].phypage = m2_c;
+        page_table[phys_pages[m2_c].virtpage].phypage = m2_c;
         m2_c++;
       }
     }
 
+    // Fill in remaining pages
     for (int i = 0; i < total_physpages - ps_epoch; i++) {
       if (m1_c < m1_pages) {
         phys_pages[m1_c] = phys_pages_buf[i];
 
         // Update physpage number
+        // printf("%d %lx\n", m1_c, phys_pages[m1_c].virtpage);
         page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
         m1_c++;
       } else {
@@ -498,6 +509,10 @@ void schedule_epoch(enum SCHEDULER n) {
         m2_c++;
       }
     }
+
+    // printf("%d\n", ps_epoch);
+
+#endif
     free(phys_pages_buf);
     free(selec_page_buf);
     break;
@@ -506,9 +521,19 @@ void schedule_epoch(enum SCHEDULER n) {
 #if 0
   for(int i = 0; i < total_physpages; i++)
   {
-    printf("%lu\n", phys_pages[i].hits);
-  }
+      matched = FALSE;
+      for (int k = 0; k < ps_count; k++) {
+        if (selected_pages[k] == phys_pages[i].virtpage) {
+          matched = TRUE;
+          break;
+        }
+      }
 
+      if (matched) {
+        printf("*");
+      }
+    printf("%lu\n", phys_pages[i].epoch_hits);
+  }
   exit(1);
 #endif
 
@@ -558,6 +583,22 @@ void page_selector(char *fileName) {
   free(records);
 }
 
+void reset_pages() {
+  num_pages_ref = 0;
+  for (int i = 0; i < total_virtpages; i++) {
+    page_table[i].phypage = 0;
+    page_table[i].chosen_index = 0;
+    page_table[i].dirty = 0;
+    page_table[i].mispredict = 0;
+    page_table[i].resident = 0;
+    page_table[i].total_hits = 0;
+  }
+  for (int i = 0; i < total_physpages; i++) {
+    phys_pages[i].epoch_hits = 0;
+    phys_pages[i].lru = 0;
+    phys_pages[i].virtpage = 0;
+  }
+}
 /*
  * main - drives the cache simulator
  */
@@ -566,23 +607,17 @@ int main(int argc, char **argv) {
   ulong instAddr, memAddr;
   uint cycle = 0;
   ulong time = 0;
+  ulong epoch = 0;
   uint page;
   char accessType;
   SCHEDULER scheduler;
 
-  if(argc != 4)
-  {
+  if (argc != 4) {
     printf("Usage %s : config.file trace.file scheduler\n", argv[0]);
     return 1;
   }
 
   if (read_config(argv[1]) != 0) {
-    return 1;
-  }
-
-  f = fopen(argv[2], "r");
-  if (f == NULL) {
-    printf("Failed to open trace file\n");
     return 1;
   }
 
@@ -592,35 +627,65 @@ int main(int argc, char **argv) {
     page_selector("benefit.log");
   }
 
-  while (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr) != EOF) {
-
-    if (cycle >= epoch_intv) {
-      schedule_epoch(scheduler);
+  do {
+    f = fopen(argv[2], "r");
+    if (f == NULL) {
+      printf("Failed to open trace file\n");
+      return 1;
     }
 
-    memAddr &= addr_mask;
-    proc_page_lookup(accessType, memAddr, &page);
-    phys_pages[page].epoch_hits++;
-    page_table[phys_pages[page].virtpage].total_hits++;
+    cycle = 0;
+    time = 0;
+    page_hits = 0;
+    page_faults = 0;
+    reset_pages();
 
-    if (page < m1_pages) {
-      time += m1_delay;
+    unsigned long i = 0;
+    int fret;
+    while (TRUE) {
+      fret = (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr));
+      if(fret == 0 || fret == EOF)
+      {
+        break;
+      }
+
+      //if (i > 1000000) {
+        ///printf("something bad\n");
+      //}
+      // i++;
+
+      if (cycle >= epoch_intv) {
+        schedule_epoch(scheduler);
+        cycle = 0;
+        // printf("reset\n");
+        // printf("%lx\n %c %lx", instAddr, accessType, memAddr);
+        //printf("Schedule : %lu\n", i);
+      }
+      //i++;
+
+      memAddr &= addr_mask;
+      proc_page_lookup(accessType, memAddr, &page);
+      phys_pages[page].epoch_hits++;
+      page_table[phys_pages[page].virtpage].total_hits++;
+
+      if (page < m1_pages) {
+        time += m1_delay;
+      } else {
+        time += m2_delay;
+      }
+
+      cycle++;
+    }
+
+    printf("STATISTICS\n");
+    printf("%-16s %9lu\n", "Page Hits", page_hits);
+    printf("%-16s %9lu\n", "Page Faults", page_faults);
+    if (scheduler != oracle) {
+      printf("%-16s %9lu\n", "Time", time);
     } else {
-      time += m2_delay;
+      schedule_epoch(oracle);
+      printf("%-16s %9lu\n", "Oracle Time", oracle_time);
     }
-
-    cycle++;
-  }
-
-  printf("STATISTICS\n");
-  printf("%-16s %9lu\n", "Page Hits", page_hits);
-  printf("%-16s %9lu\n", "Page Faults", page_faults);
-  if (scheduler != oracle) {
-    printf("%-16s %9lu\n", "Time", time);
-  } else {
-    schedule_epoch(oracle);
-    printf("%-16s %9lu\n", "Oracle Time", oracle_time);
-  }
 
 #if 0
   benLog = fopen("benefit.log", "wb");
@@ -631,9 +696,18 @@ int main(int argc, char **argv) {
   }
   fclose(benLog);
 #endif
+    fclose(f);
+    epoch++;
+  } while (scheduler == rl && epoch < 100);
 
   if (selected_pages != NULL) {
     free(selected_pages);
+    /*for (int i = 0; i < ps_count; i++) {
+      // Initialize Q values for each page
+      free(sp_qval[i].Q);
+    }
+    free(sp_states);
+    free(sp_qval);*/
   }
 
   return 0;

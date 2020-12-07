@@ -1,8 +1,10 @@
 #include "rl.h"
+#include <stdlib.h>
 
+ulong epsilon = 100;
 double lr = 0.1;
 double discount = 0.9;
-
+int CYCLE = 0;
 /*
 def q_learn_ep(policyType):
     """Performs an episode of Q-Learning"""
@@ -61,23 +63,51 @@ double getQValue(state s, qvalue Q) {
 
 void updateQValue(ulong index, int ps_count, state * s, qvalue * Q, long reward)
 {   
-    double q = getQValue(s[index], *Q);
-    double q_new = getQValue(s[index + ps_count], *Q);
+    double q = getQValue(s[index], *(Q+index));
+    double q_new = getQValue(s[index + ps_count], *(Q+index));
     double update = q + lr * (reward + discount*q_new - q);
-    setQValue(s[index], Q, update);
+    //printf("Update : %lf\n", update);
+    setQValue(s[index], Q+index, update);
+    #if 0
+    for(int i = 0; i < Q->x; i++)
+    {
+        for(int j = 0; j < Q->y; j++)
+        {
+            printf("[");
+            for(int z = 0; z < Q->z; z++)
+            {
+                printf("%lf", (Q+index)->Q[i + j * Q->x + z * Q->x * Q->y]);
+                printf("\t");
+            }
+            printf("]\t");
+        }
+        printf("\n");
+    }
+    #endif
     //double q = Q->Q[s[index + ps_count*0].old_device][s[index + ps_count*0].hits*Q->x][s[index + ps_count*0].new_device*Q->x*Q->y];
     //Q->Q[s.old_device][s.hits*Q->x][s.new_device*Q->x*Q->y] = q + lr * (reward + discount*Q->Q[s.new_device][])
 }
 
 ACTION getAction(state s, qvalue Q) {
+  s.new_device = 0;
   double m1_q = getQValue(s, Q);
+  s.new_device = 1;
   double m2_q = getQValue(s, Q);
-
-  return (m1_q > m2_q) ? m1 : m2;
+  //printf("%lf : %lf\n", m1_q, m2_q);
+  //if (CYCLE == 20)
+    //exit(1);
+  // CYCLE++;
+  ulong r = rand() % 10000;
+  if (r >= epsilon) {
+    return (m1_q > m2_q) ? m1 : m2;
+  }
+  else {
+      return (r % 2) ? m1 : m2;
+  }
 }
 
 // Make decision for page
-ACTION rl_schedule_page(state *s, qvalue *Q) { return getAction(*s, *Q); }
+ACTION rl_schedule_page(state *s, qvalue *Q) { return getAction(*s, *(Q)); }
 // Actions
 // Place in m1
 // Place in m2
