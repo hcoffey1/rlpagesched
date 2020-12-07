@@ -7,4 +7,4 @@ M2 Delay:   10
 Page Size:  512
 Addr Size:  16 
 Epoch Intv: 10000
-Page Select: 1
+Page Select: 4

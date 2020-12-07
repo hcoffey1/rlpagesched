@@ -642,7 +642,7 @@ void save_model(char *fileName) {
 
   // Write header info
   fwrite(&ps_count, 1, sizeof(uint), f);
-  fwrite(&EPOCHS, 1, sizeof(ulong), f);
+  fwrite(&EPOCHS_RAN, 1, sizeof(ulong), f);
 
   fwrite(selected_pages, ps_count, sizeof(ulong), f);
 
@@ -650,7 +650,7 @@ void save_model(char *fileName) {
     fwrite(sp_qval + i, 1, sizeof(qvalue), f);
     fwrite(sp_qval[i].Q,
            sp_qval[i].x0 * sp_qval[i].x1 * sp_qval[i].y * sp_qval[i].z,
-           sizeof(qvalue), f);
+           sizeof(double), f);
   }
 
   fclose(f);
@@ -688,8 +688,14 @@ int load_model(char *fileName) {
 
     fread(sp_qval[i].Q,
           sp_qval[i].x0 * sp_qval[i].x1 * sp_qval[i].y * sp_qval[i].z,
-          sizeof(qvalue), f);
+          sizeof(double), f);
   }
+
+  fclose(f);
+
+  printf("LOADED MODEL:\n");
+  printf("PS COUNT: %u\n", tmp_ps_count);
+  printf("EPOCHS RAN: %lu\n", EPOCHS_RAN);
 }
 /*
  * main - drives the cache simulator
@@ -709,6 +715,7 @@ int main(int argc, char **argv) {
   char *schedulerArg;
   char *saveModelName;
   char *loadModelName;
+  char *epochCount;
 
   configFileName = getCmdOption(argv, argc, "-c");
   if (configFileName == 0) {
@@ -730,18 +737,20 @@ int main(int argc, char **argv) {
 
   scheduler = atoi(schedulerArg);
 
-  if (scheduler == rl) {
-    saveModelName = getCmdOption(argv, argc, "-SM");
-    loadModelName = getCmdOption(argv, argc, "-LM");
-  }
-
   if (read_config(configFileName) != 0) {
     return 1;
   }
 
   if (scheduler == rl) {
+    saveModelName = getCmdOption(argv, argc, "-SM");
+    loadModelName = getCmdOption(argv, argc, "-LM");
+    epochCount = getCmdOption(argv, argc, "-e");
     if (loadModelName != 0) {
       load_model(loadModelName);
+    }
+
+    if (epochCount != 0) {
+      EPOCHS = atoi(epochCount);
     }
 
     page_selector("benefit.log");
@@ -809,6 +818,7 @@ int main(int argc, char **argv) {
 #endif
     fclose(f);
     epoch++;
+    EPOCHS_RAN++;
   } while (scheduler == rl && epoch < EPOCHS);
 
   if (scheduler == rl) {
