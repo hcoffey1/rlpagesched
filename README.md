@@ -31,6 +31,9 @@ make
 |-LM X    |File path to load model from (optional)|
 |-SM X |File path to save model to (optional)|
 
+Schedulers available and their argument encodings are:
+<code>[history : 0, oracle : 1, rl : 2]</code>
+
 ## References
 Kleio Paper:
 https://www.blagodurov.net/files/hpdc002-doudaliA.pdf
