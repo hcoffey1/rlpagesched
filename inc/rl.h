@@ -12,6 +12,7 @@ typedef struct state {
   uchar old_device;
   uchar new_device;
   ulong hits;
+  ulong p1_hits;
 } state;
 /*
 typedef struct policy {
@@ -21,7 +22,7 @@ typedef struct policy {
 */
 typedef struct qvalue{
     double * Q;
-    ulong x,y,z;
+    ulong x0,x1,y,z;
 }qvalue;
 
 

@@ -52,12 +52,13 @@ get_Q(old_state, action))
 
 void setQValue(state s, qvalue *Q, double update) {
   //printf("Accessing %d:\n", s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y));
-  Q->Q[s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y)] =
+  Q->Q[s.hits + s.p1_hits*(Q->x0) + s.old_device * (Q->x0) * Q->x1 + s.new_device * (Q->x0) * (Q->x1) * (Q->y)] =
       update;
 }
 
 double getQValue(state s, qvalue Q) {
-  return Q.Q[s.hits + s.old_device * Q.x + s.new_device * Q.x * Q.y];
+  //return Q.Q[s.hits + s.old_device * Q.x + s.new_device * Q.x * Q.y];
+  return Q.Q[s.hits + s.p1_hits*(Q.x0) + s.old_device * Q.x0 * Q.x1 + s.new_device * Q.x0 * Q.x1 * Q.y];
 }
 
 void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {

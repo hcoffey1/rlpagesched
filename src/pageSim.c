@@ -470,6 +470,7 @@ void schedule_epoch(enum SCHEDULER n) {
 
       // New state
       // printf("pind : %d\n", ps_index+ps_count);
+      sp_states[ps_index + ps_count].p1_hits = sp_states[ps_index + ps_count].hits;
       sp_states[ps_index + ps_count].hits = hits / HIT_DIV;
       sp_states[ps_index + ps_count].old_device =
           page_table[selected_pages[ps_index]].phypage / m1_pages;
@@ -576,8 +577,9 @@ void page_selector(char *fileName) {
     selected_pages[i] = records[i].vpn;
 
     // Initialize Q values for each page
-    sp_qval[i].Q = malloc(sizeof(double) * (HIT_CAP / HIT_DIV) * 2 * 2);
-    sp_qval[i].x = (HIT_CAP / HIT_DIV);
+    sp_qval[i].Q = malloc(sizeof(double) * (HIT_CAP/HIT_DIV) * (HIT_CAP / HIT_DIV) * 2 * 2);
+    sp_qval[i].x0 = (HIT_CAP / HIT_DIV);
+    sp_qval[i].x1 = (HIT_CAP / HIT_DIV);
     sp_qval[i].y = 2;
     sp_qval[i].z = 2;
   }
@@ -596,7 +598,7 @@ void page_selector(char *fileName) {
   free(records);
 }
 
-void reset_pages() {
+void reset_pages(int scheduler) {
   num_pages_ref = 0;
   for (int i = 0; i < total_virtpages; i++) {
     page_table[i].phypage = 0;
@@ -611,6 +613,25 @@ void reset_pages() {
     phys_pages[i].lru = 0;
     phys_pages[i].virtpage = 0;
   }
+
+  if (scheduler == rl) {
+    for (int i = 0; i < ps_count; i++) {
+      sp_states[i].p1_hits = 0;
+      sp_states[i].hits = 0;
+      sp_states[i].new_device = 0;
+      sp_states[i].old_device = 0;
+    }
+  }
+}
+
+void save_model(char * fileName)
+{
+
+}
+
+void load_model(char * fileName)
+{
+
 }
 /*
  * main - drives the cache simulator
@@ -651,7 +672,7 @@ int main(int argc, char **argv) {
     time = 0;
     page_hits = 0;
     page_faults = 0;
-    reset_pages();
+    reset_pages(scheduler);
 
     int fret;
     while (TRUE) {
@@ -702,7 +723,7 @@ int main(int argc, char **argv) {
 #endif
     fclose(f);
     epoch++;
-  } while (scheduler == rl && epoch < 1000);
+  } while (scheduler == rl && epoch < 5000);
 
   if (selected_pages != NULL) {
     free(selected_pages);
