@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} ${GCC_COMPILE_FLAGS}")
 project(rlpagesched VERSION 1.0)
 
 #Executable
-add_executable(pagesim ./src/pageSim.c ./src/rl.c)
+add_executable(pagesim ./src/pageSim.c ./src/rl.c ./src/CommandLine.c)
 
 target_include_directories(pagesim PRIVATE ./inc)
 target_compile_options(pagesim PRIVATE -g)
