@@ -68,7 +68,7 @@ void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {
   //printf("Reward : %lf %lf %lf %lf %ld\n",q, lr, discount, q_new, reward);
   //exit(1);
   setQValue(s[index], Q + index, update);
-#if 1
+#if 0
     printf("=================================================\n");
     printf("INDEX %d\n", index);
     printf("Updated : %d %d %d\n", s->hits, s->old_device, s->new_device);
@@ -104,6 +104,13 @@ ACTION getAction(state s, qvalue Q) {
   s.new_device = 1;
   double m2_q = getQValue(s, Q);
 
+  #if 0
+  if(s.hits == 1)
+  {
+    printf("HITS 1 : %lf : %lf\n", m1_q, m2_q);
+  }
+  #endif
+
   ulong r = rand() % 10000;
   if (r >= epsilon) {
     return (m1_q > m2_q) ? m1 : m2;
@@ -114,8 +121,10 @@ ACTION getAction(state s, qvalue Q) {
 
 // Make decision for page
 ACTION rl_schedule_page(state *s, qvalue *Q) {
+  #if 0
   printf("Action State: %d %d %d\n", s->hits, s->old_device, s->new_device);
   printf("Chose action %d\n", getAction(*s, *(Q)));
+  #endif
    return getAction(*s, *(Q)); 
    }
 // Actions

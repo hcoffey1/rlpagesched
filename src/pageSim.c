@@ -488,7 +488,6 @@ void schedule_epoch(enum SCHEDULER n) {
         phys_pages[m1_c] = selec_page_buf[i];
         page_table[selected_pages[ps_index]].phypage = m1_c;
         m1_c++;
-        m1p++;
       } else {
         phys_pages[m2_c] = selec_page_buf[i];
         page_table[selected_pages[ps_index]].phypage = m2_c;
@@ -700,7 +699,7 @@ int main(int argc, char **argv) {
 #endif
     fclose(f);
     epoch++;
-  } while (scheduler == rl && epoch < 100);
+  } while (scheduler == rl && epoch < 1000);
 
   if (selected_pages != NULL) {
     free(selected_pages);
