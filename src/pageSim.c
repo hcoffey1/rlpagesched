@@ -702,23 +702,43 @@ int main(int argc, char **argv) {
   char accessType;
   SCHEDULER scheduler;
 
-  if (argc != 4) {
-    printf("Usage %s : config.file trace.file scheduler\n", argv[0]);
+  char * configFileName;
+  char * traceFileName;
+  char * schedulerArg;
+
+  configFileName = getCmdOption(argv, argc, "-c");
+  if(configFileName == 0)
+  {
+    fprintf(stderr, "No config file specified.\n");
     return 1;
   }
 
-  if (read_config(argv[1]) != 0) {
+  traceFileName = getCmdOption(argv, argc, "-t");
+  if(configFileName == 0)
+  {
+    fprintf(stderr, "No trace file specified.\n");
     return 1;
   }
 
-  scheduler = atoi(argv[3]);
+  schedulerArg = getCmdOption(argv, argc, "-s");
+  if(schedulerArg == 0)
+  {
+    fprintf(stderr, "No scheduler specified.\n");
+    return 1;
+  }
+
+  scheduler = atoi(schedulerArg);
+
+  if (read_config(configFileName) != 0) {
+    return 1;
+  }
 
   if (scheduler == rl) {
     page_selector("benefit.log");
   }
 
   do {
-    f = fopen(argv[2], "r");
+    f = fopen(traceFileName, "r");
     if (f == NULL) {
       printf("Failed to open trace file\n");
       return 1;
