@@ -10,8 +10,6 @@
 #define TRUE 1
 #define FALSE 0
 
-//#define ORACLE
-
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
@@ -463,31 +461,24 @@ void schedule_epoch(enum SCHEDULER n) {
 #if 1
     // Make decisions for selected pages
     for (int i = 0; i < ps_epoch; i++) {
-      //printf("ps epoch : %d\n", ps_epoch);
+      // printf("ps epoch : %d\n", ps_epoch);
       ps_index = page_table[selec_page_buf[i].virtpage].chosen_index;
       hits = selec_page_buf[i].epoch_hits;
-      if(hits > HIT_CAP)
-      {
+      if (hits > HIT_CAP) {
         hits = HIT_CAP;
       }
-      // phys_pages[page_table[selec_page_buf[i].virtpage].phypage].epoch_hits;
 
       // New state
-      //printf("pind : %d\n", ps_index+ps_count);
+      // printf("pind : %d\n", ps_index+ps_count);
       sp_states[ps_index + ps_count].hits = hits / HIT_DIV;
       sp_states[ps_index + ps_count].old_device =
           page_table[selected_pages[ps_index]].phypage / m1_pages;
       sp_states[ps_index + ps_count].new_device =
           rl_schedule_page(&sp_states[ps_index], &sp_qval[ps_index]);
 
-      //if (sp_states[ps_index + ps_count].new_device == 0)
-      //{
-        //printf("Action : %d\n", sp_states[ps_index + ps_count].new_device);
-        //exit(1);
-      //}
-      #if 1
+#if 1
       updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay);
-      #endif
+#endif
 
       // Update old State
       sp_states[ps_index] = sp_states[ps_index + ps_count];
@@ -522,8 +513,8 @@ void schedule_epoch(enum SCHEDULER n) {
         m2_c++;
       }
     }
-      #endif
-    //printf("m1p %d\n", m1p);
+#endif
+    // printf("m1p %d\n", m1p);
 
     // printf("%d\n", ps_epoch);
 
@@ -558,8 +549,7 @@ void schedule_epoch(enum SCHEDULER n) {
 
 void page_selector(char *fileName) {
 
-  if(ps_count == 0)
-  {
+  if (ps_count == 0) {
     return;
   }
   // Read in benefit data
@@ -591,7 +581,7 @@ void page_selector(char *fileName) {
     sp_qval[i].y = 2;
     sp_qval[i].z = 2;
   }
-  //printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
+  // printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
 #if 0
   for (int i = 0; i < total_virtpages; i++) {
     printf("%16lu : %16lu\n", records[i].vpn, records[i].benefit);
@@ -660,20 +650,17 @@ int main(int argc, char **argv) {
     page_faults = 0;
     reset_pages();
 
-    unsigned long i = 0;
     int fret;
     while (TRUE) {
       fret = (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr));
-      //printf("fret : %d\n", fret);
-      if(fret == 0 || fret == EOF)
-      {
+      // printf("fret : %d\n", fret);
+      if (fret == 0 || fret == EOF) {
         break;
       }
 
       if (cycle >= epoch_intv) {
         schedule_epoch(scheduler);
-        i++;
-        //printf("%d\n", i);
+        // printf("%d\n", i);
         cycle = 0;
       }
 

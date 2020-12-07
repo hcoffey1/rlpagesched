@@ -51,13 +51,8 @@ get_Q(old_state, action))
 // current device, hits, maybe hits from earlier epoch as well?
 
 void setQValue(state s, qvalue *Q, double update) {
-  //printf("%d %d %d\n", s.hits, s.old_device, s.new_device);
-  //printf("Accessing %lu\n",
-         //s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y));
   Q->Q[s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y)] =
       update;
-  // Q.Q[s.old_device][s.hits*Q.x][s.new_device*Q.x*Q.y] = q + lr * (prev_reward
-  // + discount*Q.Q[s.new_device][])
 }
 
 double getQValue(state s, qvalue Q) {
@@ -68,7 +63,6 @@ void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {
   double q = getQValue(s[index], *(Q + index));
   double q_new = getQValue(s[index + ps_count], *(Q + index));
   double update = q + lr * (reward + discount * q_new - q);
-  //printf("Update : %d\n", index);
   setQValue(s[index], Q + index, update);
 #if 0
     for(int i = 0; i < Q->x; i++)
@@ -97,10 +91,7 @@ ACTION getAction(state s, qvalue Q) {
   double m1_q = getQValue(s, Q);
   s.new_device = 1;
   double m2_q = getQValue(s, Q);
-  // printf("%lf : %lf\n", m1_q, m2_q);
-  // if (CYCLE == 20)
-  // exit(1);
-  // CYCLE++;
+
   ulong r = rand() % 10000;
   if (r >= epsilon) {
     return (m1_q > m2_q) ? m1 : m2;
