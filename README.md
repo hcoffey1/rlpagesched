@@ -8,6 +8,8 @@ environment to control page placement.
 
 ## Dependencies
 CMake is used to build the project, but there should not be any extra non-standard C libraries used.
+
+Build steps:
 <pre>
 <code>
 mkdir build
@@ -34,3 +36,13 @@ Kleio Paper:
 https://www.blagodurov.net/files/hpdc002-doudaliA.pdf
 
 ## Examples
+
+Run the executable using config file <code>config.txt</code>, trace file <code>medium.log</code>, with the RL scheduler, saving and loading the model
+from the same file, and running for 10000 epochs.
+<pre>
+<code>
+./pagesim -c ../config.txt -t ../medium.log -s 2 -SM test_4.model -LM test_4.model -e 10000 
+</code>
+</pre>
+
+A sample trace file <code>small.log</code> is included in the repo.
