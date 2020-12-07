@@ -1,5 +1,5 @@
-#include "rl.h"
 #include "CommandLine.h"
+#include "rl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -469,16 +469,17 @@ void schedule_epoch(enum SCHEDULER n) {
       ps_index = page_table[selec_page_buf[i].virtpage].chosen_index;
       hits = selec_page_buf[i].epoch_hits;
       if (hits > HIT_CAP) {
-        hits = HIT_CAP-1;
+        hits = HIT_CAP - 1;
       }
 
       // New state
       // printf("pind : %d\n", ps_index+ps_count);
-      sp_states[ps_index + ps_count].p1_hits = sp_states[ps_index + ps_count].hits;
+      sp_states[ps_index + ps_count].p1_hits =
+          sp_states[ps_index + ps_count].hits;
       sp_states[ps_index + ps_count].hits = hits / HIT_DIV;
       sp_states[ps_index + ps_count].old_device =
           page_table[selected_pages[ps_index]].phypage / m1_pages;
-      //printf("Old page: %d\n", page_table[selected_pages[ps_index]].phypage);
+      // printf("Old page: %d\n", page_table[selected_pages[ps_index]].phypage);
       sp_states[ps_index + ps_count].new_device =
           rl_schedule_page(&sp_states[ps_index], &sp_qval[ps_index]);
 
@@ -571,26 +572,29 @@ void page_selector(char *fileName) {
     records[i].vpn = i;
   }
 
-  selected_pages = malloc(sizeof(ulong) * ps_count);
   sp_states = malloc(sizeof(state) * ps_count * 2);
-  sp_qval = malloc(sizeof(qvalue) * ps_count);
 
   quickSort_pr(records, 0, total_virtpages - 1);
 
-  for (int i = 0; i < ps_count; i++) {
-    selected_pages[i] = records[i].vpn;
+  if (selected_pages == NULL || sp_qval == NULL) {
+    selected_pages = malloc(sizeof(ulong) * ps_count);
+    sp_qval = malloc(sizeof(qvalue) * ps_count);
+    for (int i = 0; i < ps_count; i++) {
+      selected_pages[i] = records[i].vpn;
 
-    // Initialize Q values for each page
-    sp_qval[i].Q = malloc(sizeof(double) * (HIT_CAP/HIT_DIV) * (HIT_CAP / HIT_DIV) * 2 * 2);
-    sp_qval[i].x0 = (HIT_CAP / HIT_DIV);
-    sp_qval[i].x1 = (HIT_CAP / HIT_DIV);
-    sp_qval[i].y = 2;
-    sp_qval[i].z = 2;
+      // Initialize Q values for each page
+      sp_qval[i].Q = malloc(sizeof(double) * (HIT_CAP / HIT_DIV) *
+                            (HIT_CAP / HIT_DIV) * 2 * 2);
+      sp_qval[i].x0 = (HIT_CAP / HIT_DIV);
+      sp_qval[i].x1 = (HIT_CAP / HIT_DIV);
+      sp_qval[i].y = 2;
+      sp_qval[i].z = 2;
+    }
   }
-  #if 0
+#if 0
    printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
    exit(1);
-  #endif
+#endif
 #if 0
   for (int i = 0; i < total_virtpages; i++) {
     printf("%16lu : %16lu\n", records[i].vpn, records[i].benefit);
@@ -628,12 +632,11 @@ void reset_pages(int scheduler) {
   }
 }
 
-void save_model(char * fileName)
-{
-  FILE * f = NULL;
+void save_model(char *fileName) {
+  FILE *f = NULL;
   f = fopen(fileName, "wb");
-  if(f == NULL){
-    fprintf(stderr, "Failed to open model file.\n");
+  if (f == NULL) {
+    fprintf(stderr, "Failed to open model file:%s.\n", fileName);
     return;
   }
 
@@ -656,9 +659,9 @@ void save_model(char * fileName)
 int load_model(char *fileName) {
   uint tmp_ps_count;
 
-  FILE * f = NULL;
+  FILE *f = NULL;
   f = fopen(fileName, "rb");
-  if(f == NULL){
+  if (f == NULL) {
     fprintf(stderr, "Failed to open model file.\n");
     return -1;
   }
@@ -666,8 +669,7 @@ int load_model(char *fileName) {
   fread(&tmp_ps_count, 1, sizeof(uint), f);
   fread(&EPOCHS_RAN, 1, sizeof(ulong), f);
 
-  if(tmp_ps_count != ps_count)
-  {
+  if (tmp_ps_count != ps_count) {
     fprintf(stderr, "ERROR: Model's selected page does not match config.\n");
     fprintf(stderr, "MODEL: %u CONFIG: %u.\n", tmp_ps_count, ps_count);
     return -1;
@@ -702,38 +704,46 @@ int main(int argc, char **argv) {
   char accessType;
   SCHEDULER scheduler;
 
-  char * configFileName;
-  char * traceFileName;
-  char * schedulerArg;
+  char *configFileName;
+  char *traceFileName;
+  char *schedulerArg;
+  char *saveModelName;
+  char *loadModelName;
 
   configFileName = getCmdOption(argv, argc, "-c");
-  if(configFileName == 0)
-  {
+  if (configFileName == 0) {
     fprintf(stderr, "No config file specified.\n");
     return 1;
   }
 
   traceFileName = getCmdOption(argv, argc, "-t");
-  if(configFileName == 0)
-  {
+  if (configFileName == 0) {
     fprintf(stderr, "No trace file specified.\n");
     return 1;
   }
 
   schedulerArg = getCmdOption(argv, argc, "-s");
-  if(schedulerArg == 0)
-  {
+  if (schedulerArg == 0) {
     fprintf(stderr, "No scheduler specified.\n");
     return 1;
   }
 
   scheduler = atoi(schedulerArg);
 
+  if (scheduler == rl) {
+    saveModelName = getCmdOption(argv, argc, "-SM");
+    loadModelName = getCmdOption(argv, argc, "-LM");
+  }
+
   if (read_config(configFileName) != 0) {
     return 1;
   }
 
   if (scheduler == rl) {
+    if (loadModelName != 0) {
+      load_model(loadModelName);
+    }
+
     page_selector("benefit.log");
   }
 
@@ -799,7 +809,13 @@ int main(int argc, char **argv) {
 #endif
     fclose(f);
     epoch++;
-  } while (scheduler == rl && epoch < 5000);
+  } while (scheduler == rl && epoch < EPOCHS);
+
+  if (scheduler == rl) {
+    if (saveModelName != 0) {
+      save_model(saveModelName);
+    }
+  }
 
   if (selected_pages != NULL) {
     free(selected_pages);
