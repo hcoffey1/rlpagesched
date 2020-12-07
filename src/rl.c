@@ -50,25 +50,27 @@ get_Q(old_state, action))
 // State
 // current device, hits, maybe hits from earlier epoch as well?
 
-
-
-void setQValue(state s, qvalue * Q, double update) {
-    Q->Q[s.old_device + s.hits*Q->x + s.new_device*Q->x*Q->y] = update;
-    //Q.Q[s.old_device][s.hits*Q.x][s.new_device*Q.x*Q.y] = q + lr * (prev_reward + discount*Q.Q[s.new_device][])
+void setQValue(state s, qvalue *Q, double update) {
+  //printf("%d %d %d\n", s.hits, s.old_device, s.new_device);
+  //printf("Accessing %lu\n",
+         //s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y));
+  Q->Q[s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y)] =
+      update;
+  // Q.Q[s.old_device][s.hits*Q.x][s.new_device*Q.x*Q.y] = q + lr * (prev_reward
+  // + discount*Q.Q[s.new_device][])
 }
 
 double getQValue(state s, qvalue Q) {
-    return Q.Q[s.old_device + s.hits*Q.x + s.new_device*Q.x*Q.y];
+  return Q.Q[s.hits + s.old_device * Q.x + s.new_device * Q.x * Q.y];
 }
 
-void updateQValue(ulong index, int ps_count, state * s, qvalue * Q, long reward)
-{   
-    double q = getQValue(s[index], *(Q+index));
-    double q_new = getQValue(s[index + ps_count], *(Q+index));
-    double update = q + lr * (reward + discount*q_new - q);
-    //printf("Update : %lf\n", update);
-    setQValue(s[index], Q+index, update);
-    #if 0
+void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {
+  double q = getQValue(s[index], *(Q + index));
+  double q_new = getQValue(s[index + ps_count], *(Q + index));
+  double update = q + lr * (reward + discount * q_new - q);
+  //printf("Update : %d\n", index);
+  setQValue(s[index], Q + index, update);
+#if 0
     for(int i = 0; i < Q->x; i++)
     {
         for(int j = 0; j < Q->y; j++)
@@ -83,9 +85,11 @@ void updateQValue(ulong index, int ps_count, state * s, qvalue * Q, long reward)
         }
         printf("\n");
     }
-    #endif
-    //double q = Q->Q[s[index + ps_count*0].old_device][s[index + ps_count*0].hits*Q->x][s[index + ps_count*0].new_device*Q->x*Q->y];
-    //Q->Q[s.old_device][s.hits*Q->x][s.new_device*Q->x*Q->y] = q + lr * (reward + discount*Q->Q[s.new_device][])
+#endif
+  // double q = Q->Q[s[index + ps_count*0].old_device][s[index +
+  // ps_count*0].hits*Q->x][s[index + ps_count*0].new_device*Q->x*Q->y];
+  // Q->Q[s.old_device][s.hits*Q->x][s.new_device*Q->x*Q->y] = q + lr * (reward
+  // + discount*Q->Q[s.new_device][])
 }
 
 ACTION getAction(state s, qvalue Q) {
@@ -93,16 +97,15 @@ ACTION getAction(state s, qvalue Q) {
   double m1_q = getQValue(s, Q);
   s.new_device = 1;
   double m2_q = getQValue(s, Q);
-  //printf("%lf : %lf\n", m1_q, m2_q);
-  //if (CYCLE == 20)
-    //exit(1);
+  // printf("%lf : %lf\n", m1_q, m2_q);
+  // if (CYCLE == 20)
+  // exit(1);
   // CYCLE++;
   ulong r = rand() % 10000;
   if (r >= epsilon) {
     return (m1_q > m2_q) ? m1 : m2;
-  }
-  else {
-      return (r % 2) ? m1 : m2;
+  } else {
+    return (r % 2) ? m1 : m2;
   }
 }
 

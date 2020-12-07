@@ -6,6 +6,7 @@
 
 #define MAX_PAGES 1024
 #define HIT_DIV 100
+#define HIT_CAP 1000
 #define TRUE 1
 #define FALSE 0
 
@@ -378,6 +379,8 @@ void schedule_epoch(enum SCHEDULER n) {
   long epoch_delay = 0;
   phys_page *phys_pages_buf;
   phys_page *selec_page_buf;
+
+  int m1p = 0;
   switch (n) {
     // History Page Schedule    state x;r
   case history:
@@ -460,11 +463,17 @@ void schedule_epoch(enum SCHEDULER n) {
 #if 1
     // Make decisions for selected pages
     for (int i = 0; i < ps_epoch; i++) {
+      //printf("ps epoch : %d\n", ps_epoch);
       ps_index = page_table[selec_page_buf[i].virtpage].chosen_index;
       hits = selec_page_buf[i].epoch_hits;
+      if(hits > HIT_CAP)
+      {
+        hits = HIT_CAP;
+      }
       // phys_pages[page_table[selec_page_buf[i].virtpage].phypage].epoch_hits;
 
       // New state
+      //printf("pind : %d\n", ps_index+ps_count);
       sp_states[ps_index + ps_count].hits = hits / HIT_DIV;
       sp_states[ps_index + ps_count].old_device =
           page_table[selected_pages[ps_index]].phypage / m1_pages;
@@ -476,15 +485,18 @@ void schedule_epoch(enum SCHEDULER n) {
         //printf("Action : %d\n", sp_states[ps_index + ps_count].new_device);
         //exit(1);
       //}
+      #if 1
       updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay);
+      #endif
 
       // Update old State
       sp_states[ps_index] = sp_states[ps_index + ps_count];
-
+#if 1
       if (sp_states[ps_index].old_device == m1) {
         phys_pages[m1_c] = selec_page_buf[i];
         page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
         m1_c++;
+        m1p++;
       } else {
         phys_pages[m2_c] = selec_page_buf[i];
         page_table[phys_pages[m2_c].virtpage].phypage = m2_c;
@@ -501,6 +513,7 @@ void schedule_epoch(enum SCHEDULER n) {
         // printf("%d %lx\n", m1_c, phys_pages[m1_c].virtpage);
         page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
         m1_c++;
+        m1p++;
       } else {
         phys_pages[m2_c] = phys_pages_buf[i];
 
@@ -509,6 +522,8 @@ void schedule_epoch(enum SCHEDULER n) {
         m2_c++;
       }
     }
+      #endif
+    //printf("m1p %d\n", m1p);
 
     // printf("%d\n", ps_epoch);
 
@@ -543,6 +558,10 @@ void schedule_epoch(enum SCHEDULER n) {
 
 void page_selector(char *fileName) {
 
+  if(ps_count == 0)
+  {
+    return;
+  }
   // Read in benefit data
   FILE *f = fopen(fileName, "rb");
   ulong *benefitArray = malloc(sizeof(ulong) * total_virtpages);
@@ -572,6 +591,7 @@ void page_selector(char *fileName) {
     sp_qval[i].y = 2;
     sp_qval[i].z = 2;
   }
+  //printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
 #if 0
   for (int i = 0; i < total_virtpages; i++) {
     printf("%16lu : %16lu\n", records[i].vpn, records[i].benefit);
@@ -644,24 +664,18 @@ int main(int argc, char **argv) {
     int fret;
     while (TRUE) {
       fret = (fscanf(f, "%lx: %c %lx\n", &instAddr, &accessType, &memAddr));
+      //printf("fret : %d\n", fret);
       if(fret == 0 || fret == EOF)
       {
         break;
       }
 
-      //if (i > 1000000) {
-        ///printf("something bad\n");
-      //}
-      // i++;
-
       if (cycle >= epoch_intv) {
         schedule_epoch(scheduler);
+        i++;
+        //printf("%d\n", i);
         cycle = 0;
-        // printf("reset\n");
-        // printf("%lx\n %c %lx", instAddr, accessType, memAddr);
-        //printf("Schedule : %lu\n", i);
       }
-      //i++;
 
       memAddr &= addr_mask;
       proc_page_lookup(accessType, memAddr, &page);
@@ -698,7 +712,7 @@ int main(int argc, char **argv) {
 #endif
     fclose(f);
     epoch++;
-  } while (scheduler == rl && epoch < 100);
+  } while (scheduler == rl && epoch < 10);
 
   if (selected_pages != NULL) {
     free(selected_pages);
