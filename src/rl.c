@@ -62,9 +62,16 @@ double getQValue(state s, qvalue Q) {
 void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {
   double q = getQValue(s[index], *(Q + index));
   double q_new = getQValue(s[index + ps_count], *(Q + index));
-  double update = q + lr * (reward + discount * q_new - q);
+  double update = q + lr * ((double)reward + discount * q_new - q);
+  //printf("Reward : %lf %lf %lf %lf %ld\n",q, lr, discount, q_new, reward);
+  //printf("%lf\n", update);
+  //printf("Reward : %lf %lf %lf %lf %ld\n",q, lr, discount, q_new, reward);
+  //exit(1);
   setQValue(s[index], Q + index, update);
-#if 0
+#if 1
+    printf("=================================================\n");
+    printf("INDEX %d\n", index);
+    printf("Updated : %d %d %d\n", s->hits, s->old_device, s->new_device);
     for(int i = 0; i < Q->x; i++)
     {
         for(int j = 0; j < Q->y; j++)
@@ -79,6 +86,11 @@ void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {
         }
         printf("\n");
     }
+    printf("=================================================\n");
+    //if(s->hits == 1)
+    //{
+      //exit(1);
+    //}
 #endif
   // double q = Q->Q[s[index + ps_count*0].old_device][s[index +
   // ps_count*0].hits*Q->x][s[index + ps_count*0].new_device*Q->x*Q->y];
@@ -101,7 +113,11 @@ ACTION getAction(state s, qvalue Q) {
 }
 
 // Make decision for page
-ACTION rl_schedule_page(state *s, qvalue *Q) { return getAction(*s, *(Q)); }
+ACTION rl_schedule_page(state *s, qvalue *Q) {
+  printf("Action State: %d %d %d\n", s->hits, s->old_device, s->new_device);
+  printf("Chose action %d\n", getAction(*s, *(Q)));
+   return getAction(*s, *(Q)); 
+   }
 // Actions
 // Place in m1
 // Place in m2

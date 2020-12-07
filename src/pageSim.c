@@ -465,7 +465,7 @@ void schedule_epoch(enum SCHEDULER n) {
       ps_index = page_table[selec_page_buf[i].virtpage].chosen_index;
       hits = selec_page_buf[i].epoch_hits;
       if (hits > HIT_CAP) {
-        hits = HIT_CAP;
+        hits = HIT_CAP-1;
       }
 
       // New state
@@ -473,6 +473,7 @@ void schedule_epoch(enum SCHEDULER n) {
       sp_states[ps_index + ps_count].hits = hits / HIT_DIV;
       sp_states[ps_index + ps_count].old_device =
           page_table[selected_pages[ps_index]].phypage / m1_pages;
+      //printf("Old page: %d\n", page_table[selected_pages[ps_index]].phypage);
       sp_states[ps_index + ps_count].new_device =
           rl_schedule_page(&sp_states[ps_index], &sp_qval[ps_index]);
 
@@ -483,14 +484,14 @@ void schedule_epoch(enum SCHEDULER n) {
       // Update old State
       sp_states[ps_index] = sp_states[ps_index + ps_count];
 #if 1
-      if (sp_states[ps_index].old_device == m1) {
+      if (sp_states[ps_index].new_device == m1) {
         phys_pages[m1_c] = selec_page_buf[i];
-        page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
+        page_table[selected_pages[ps_index]].phypage = m1_c;
         m1_c++;
         m1p++;
       } else {
         phys_pages[m2_c] = selec_page_buf[i];
-        page_table[phys_pages[m2_c].virtpage].phypage = m2_c;
+        page_table[selected_pages[ps_index]].phypage = m2_c;
         m2_c++;
       }
     }
@@ -699,7 +700,7 @@ int main(int argc, char **argv) {
 #endif
     fclose(f);
     epoch++;
-  } while (scheduler == rl && epoch < 10);
+  } while (scheduler == rl && epoch < 100);
 
   if (selected_pages != NULL) {
     free(selected_pages);
