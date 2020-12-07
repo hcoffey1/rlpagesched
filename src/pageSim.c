@@ -6,7 +6,7 @@
 
 #define MAX_PAGES 1024
 #define HIT_DIV 100
-#define HIT_CAP 1000
+#define HIT_CAP 10000
 #define TRUE 1
 #define FALSE 0
 
@@ -576,12 +576,15 @@ void page_selector(char *fileName) {
     selected_pages[i] = records[i].vpn;
 
     // Initialize Q values for each page
-    sp_qval[i].Q = malloc(sizeof(double) * (1000 / HIT_DIV) * 2 * 2);
-    sp_qval[i].x = (1000 / HIT_DIV);
+    sp_qval[i].Q = malloc(sizeof(double) * (HIT_CAP / HIT_DIV) * 2 * 2);
+    sp_qval[i].x = (HIT_CAP / HIT_DIV);
     sp_qval[i].y = 2;
     sp_qval[i].z = 2;
   }
-  // printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
+  #if 0
+   printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
+   exit(1);
+  #endif
 #if 0
   for (int i = 0; i < total_virtpages; i++) {
     printf("%16lu : %16lu\n", records[i].vpn, records[i].benefit);

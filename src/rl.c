@@ -51,6 +51,7 @@ get_Q(old_state, action))
 // current device, hits, maybe hits from earlier epoch as well?
 
 void setQValue(state s, qvalue *Q, double update) {
+  //printf("Accessing %d:\n", s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y));
   Q->Q[s.hits + s.old_device * (Q->x) + s.new_device * (Q->x) * (Q->y)] =
       update;
 }
@@ -67,7 +68,10 @@ void updateQValue(ulong index, int ps_count, state *s, qvalue *Q, long reward) {
   //printf("%lf\n", update);
   //printf("Reward : %lf %lf %lf %lf %ld\n",q, lr, discount, q_new, reward);
   //exit(1);
+
+  //This function is cursed
   setQValue(s[index], Q + index, update);
+
 #if 0
     printf("=================================================\n");
     printf("INDEX %d\n", index);
