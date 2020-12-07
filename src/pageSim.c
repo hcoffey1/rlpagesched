@@ -15,6 +15,9 @@ typedef unsigned long ulong;
 
 typedef enum SCHEDULER { history, oracle, rl } SCHEDULER;
 
+ulong EPOCHS = 10;
+ulong EPOCHS_RAN = 0;
+
 uint total_physpages;
 uint total_virtpages;
 uint m1_pages;
@@ -626,12 +629,64 @@ void reset_pages(int scheduler) {
 
 void save_model(char * fileName)
 {
+  FILE * f = NULL;
+  f = fopen(fileName, "wb");
+  if(f == NULL){
+    fprintf(stderr, "Failed to open model file.\n");
+    return;
+  }
 
+  // Write header info
+  fwrite(&ps_count, 1, sizeof(uint), f);
+  fwrite(&EPOCHS, 1, sizeof(ulong), f);
+
+  fwrite(selected_pages, ps_count, sizeof(ulong), f);
+
+  for (int i = 0; i < ps_count; i++) {
+    fwrite(sp_qval + i, 1, sizeof(qvalue), f);
+    fwrite(sp_qval[i].Q,
+           sp_qval[i].x0 * sp_qval[i].x1 * sp_qval[i].y * sp_qval[i].z,
+           sizeof(qvalue), f);
+  }
+
+  fclose(f);
 }
 
-void load_model(char * fileName)
-{
+int load_model(char *fileName) {
+  uint tmp_ps_count;
 
+  FILE * f = NULL;
+  f = fopen(fileName, "rb");
+  if(f == NULL){
+    fprintf(stderr, "Failed to open model file.\n");
+    return -1;
+  }
+
+  fread(&tmp_ps_count, 1, sizeof(uint), f);
+  fread(&EPOCHS_RAN, 1, sizeof(ulong), f);
+
+  if(tmp_ps_count != ps_count)
+  {
+    fprintf(stderr, "ERROR: Model's selected page does not match config.\n");
+    fprintf(stderr, "MODEL: %u CONFIG: %u.\n", tmp_ps_count, ps_count);
+    return -1;
+  }
+
+  selected_pages = malloc(sizeof(ulong) * ps_count);
+  sp_qval = malloc(sizeof(qvalue) * ps_count);
+
+  fread(selected_pages, ps_count, sizeof(ulong), f);
+
+  for (int i = 0; i < ps_count; i++) {
+    fread(sp_qval + i, 1, sizeof(qvalue), f);
+
+    sp_qval[i].Q = malloc(sizeof(double) * (HIT_CAP / HIT_DIV) *
+                          (HIT_CAP / HIT_DIV) * 2 * 2);
+
+    fread(sp_qval[i].Q,
+          sp_qval[i].x0 * sp_qval[i].x1 * sp_qval[i].y * sp_qval[i].z,
+          sizeof(qvalue), f);
+  }
 }
 /*
  * main - drives the cache simulator
