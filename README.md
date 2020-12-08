@@ -6,7 +6,9 @@ to organize pages in a heterogeneous memory system, this project is a crude atte
 environment to control page placement.
 
 Note: I've realized that this project should be written in python for the course work,
-and have added a python version that accepts the same command line arguments
+and have added a python version that accepts the same command line arguments.
+The python version currently cannot save or load models,
+but is still able to execute the RL based scheduler.
 ## Dependencies
 CMake is used to build the project, but there should not be any extra non-standard C libraries used.
 
