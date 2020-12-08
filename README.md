@@ -5,7 +5,8 @@ Inspired by the <a href="https://www.blagodurov.net/files/hpdc002-doudaliA.pdf">
 to organize pages in a heterogeneous memory system, this project is a crude attempt at using temporal difference learning in a simulated
 environment to control page placement.
 
-
+Note: I've realized that this project should be written in python for the course work,
+and have added a python version that accepts the same command line arguments
 ## Dependencies
 CMake is used to build the project, but there should not be any extra non-standard C libraries used.
 
@@ -45,6 +46,13 @@ from the same file, and running for 10000 epochs.
 <pre>
 <code>
 ./pagesim -c ../config.txt -t ../medium.log -s 2 -SM test_4.model -LM test_4.model -e 10000 
+</code>
+</pre>
+
+Running the Python3 version:
+<pre>
+<code>
+python pageSim.py -c config.txt -s 2 -t medium.log  
 </code>
 </pre>
 
