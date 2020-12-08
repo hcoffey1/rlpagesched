@@ -375,8 +375,7 @@ def oracle_scheduler():
         else:
             oracle_time += m2_delay * phys_pages[i].epoch_hits
 
-
-def schedule_epoch(n):
+def rl_scheduler():
     global m1_delay, m2_delay
     hits = 0
     m1_c = 0
@@ -388,6 +387,102 @@ def schedule_epoch(n):
     matched = False
     epoch_delay = 0
 
+    #Calculate delay over past epoch to get reward
+    for page in range(total_physpages):
+        if page < m1_pages:
+            epoch_delay += m1_delay * phys_pages[page].epoch_hits
+        else:
+            epoch_delay += m2_delay * phys_pages[page].epoch_hits
+
+    #Calculate how many selected pages are present in memory
+    for i in range(total_physpages):
+        matched = False
+        for k in range(ps_count):
+            if selected_pages[k] == phys_pages[i].virtpage:
+                matched = True
+                ps_index = k
+                break
+
+        if matched:
+            ps_epoch += 1
+
+    #Allocate buffers to split selected pages from non-chosen
+    phys_pages_buf = []
+    for i in range(total_physpages - ps_epoch):
+        phys_pages_buf.append(phys_page())
+
+    selec_page_buf = []
+    for i in range(ps_epoch):
+        selec_page_buf.append(phys_page())
+
+    #Split physical pages into the two buffers
+    j = z = 0
+    for i in range(total_physpages):
+        matched = False
+
+        for k in range(ps_count):
+            if selected_pages[k] == phys_pages[i].virtpage:
+                matched = True
+                selec_page_buf[z] = phys_pages[i]
+                page_table[selec_page_buf[z].virtpage].chosen_index = k
+                z += 1
+
+        if matched:
+            continue
+
+        phys_pages_buf[j] = phys_pages[i]
+        j += 1
+
+    #Sort non-selected pages
+    phys_pages_buf.sort(key=lambda x: x.epoch_hits, reverse=True)
+
+    #Make decisions for selected pages
+    for i in range(ps_epoch):
+        ps_index = page_table[selec_page_buf[i].virtpage].chosen_index
+        hits = selec_page_buf[i].epoch_hits
+        if hits > HIT_CAP:
+            hits = HIT_CAP - 1
+
+        #Calculate new state
+        sp_states[ps_index + ps_count].p1_hits = int(
+            sp_states[ps_index + ps_count].hits)
+        sp_states[ps_index + ps_count].hits = int(int(hits) / int(HIT_DIV))
+        sp_states[ps_index + ps_count].old_device = int(
+            page_table[selected_pages[ps_index]].phypage / m1_pages)
+        sp_states[ps_index + ps_count].new_device = int(
+            rl_schedule_page(sp_states[ps_index], sp_qval[ps_index]))
+
+        updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay)
+
+        #Update old state
+        sp_states[ps_index] = sp_states[ps_index + ps_count]
+
+        #If action is assigning to m1
+        if sp_states[ps_index].new_device == m1:
+            phys_pages[m1_c] = (selec_page_buf[i])
+            page_table[selected_pages[ps_index]].phypage = m1_c
+            m1_c += 1
+        #Else assign to m2
+        else:
+            phys_pages[m2_c] = (selec_page_buf[i])
+            page_table[selected_pages[ps_index]].phypage = m2_c
+            m2_c += 1
+
+    #Fill in remaining pages using history approach
+    for i in range(total_physpages - ps_epoch):
+        if m1_c < m1_pages:
+            phys_pages[m1_c] = (phys_pages_buf[i])
+            page_table[phys_pages[m1_c].virtpage].phypage = m1_c
+            m1_c += 1
+        else:
+            phys_pages[m2_c] = (phys_pages_buf[i])
+            page_table[phys_pages[m2_c].virtpage].phypage = m2_c
+            m2_c += 1
+
+
+def schedule_epoch(n):
+
+    #Choose scheduler method
     if n == history:
         history_scheduler()
     elif n == oracle:
@@ -395,97 +490,8 @@ def schedule_epoch(n):
 
     #TD based page scheduler
     elif n == rl:
-        #Calculate delay over past epoch to get reward
-        for page in range(total_physpages):
-            if page < m1_pages:
-                epoch_delay += m1_delay * phys_pages[page].epoch_hits
-            else:
-                epoch_delay += m2_delay * phys_pages[page].epoch_hits
+        rl_scheduler()
 
-        #Calculate how many selected pages are present in memory
-        for i in range(total_physpages):
-            matched = False
-            for k in range(ps_count):
-                if selected_pages[k] == phys_pages[i].virtpage:
-                    matched = True
-                    ps_index = k
-                    break
-
-            if matched:
-                ps_epoch += 1
-
-        #Allocate buffers to split selected pages from non-chosen
-        phys_pages_buf = []
-        for i in range(total_physpages - ps_epoch):
-            phys_pages_buf.append(phys_page())
-
-        selec_page_buf = []
-        for i in range(ps_epoch):
-            selec_page_buf.append(phys_page())
-
-        #Split physical pages into the two buffers
-        j = z = 0
-        for i in range(total_physpages):
-            matched = False
-
-            for k in range(ps_count):
-                if selected_pages[k] == phys_pages[i].virtpage:
-                    matched = True
-                    selec_page_buf[z] = phys_pages[i]
-                    page_table[selec_page_buf[z].virtpage].chosen_index = k
-                    z += 1
-
-            if matched:
-                continue
-
-            phys_pages_buf[j] = phys_pages[i]
-            j += 1
-
-        #Sort non-selected pages
-        phys_pages_buf.sort(key=lambda x: x.epoch_hits, reverse=True)
-
-        #Make decisions for selected pages
-        for i in range(ps_epoch):
-            ps_index = page_table[selec_page_buf[i].virtpage].chosen_index
-            hits = selec_page_buf[i].epoch_hits
-            if hits > HIT_CAP:
-                hits = HIT_CAP - 1
-
-            #Calculate new state
-            sp_states[ps_index + ps_count].p1_hits = int(
-                sp_states[ps_index + ps_count].hits)
-            sp_states[ps_index + ps_count].hits = int(int(hits) / int(HIT_DIV))
-            sp_states[ps_index + ps_count].old_device = int(
-                page_table[selected_pages[ps_index]].phypage / m1_pages)
-            sp_states[ps_index + ps_count].new_device = int(
-                rl_schedule_page(sp_states[ps_index], sp_qval[ps_index]))
-
-            updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay)
-
-            #Update old state
-            sp_states[ps_index] = sp_states[ps_index + ps_count]
-
-            #If action is assigning to m1
-            if sp_states[ps_index].new_device == m1:
-                phys_pages[m1_c] = (selec_page_buf[i])
-                page_table[selected_pages[ps_index]].phypage = m1_c
-                m1_c += 1
-            #Else assign to m2
-            else:
-                phys_pages[m2_c] = (selec_page_buf[i])
-                page_table[selected_pages[ps_index]].phypage = m2_c
-                m2_c += 1
-
-        #Fill in remaining pages using history approach
-        for i in range(total_physpages - ps_epoch):
-            if m1_c < m1_pages:
-                phys_pages[m1_c] = (phys_pages_buf[i])
-                page_table[phys_pages[m1_c].virtpage].phypage = m1_c
-                m1_c += 1
-            else:
-                phys_pages[m2_c] = (phys_pages_buf[i])
-                page_table[phys_pages[m2_c].virtpage].phypage = m2_c
-                m2_c += 1
     reset_lru()
     reset_page_hits()
 
