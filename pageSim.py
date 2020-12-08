@@ -1,31 +1,35 @@
-#Just realized that this has to be written in python and not C.
 #Student: Hayden Coffey
 #ECE 517: Final Project, Python Version
+#Just realized that this has to be written in python and not C.
 import math
 import copy
 import random
 import sys
 from array import array
 
+#Scheduler encodings
 history = 0
 oracle = 1
 rl = 2
 
 #Temporal Difference=========================================
+#Learning rate, discount factor, and epsilon for e-greedy policy
 lr = 0.1
 discount = 0.9
 epsilon = 100
+
+#Action encodings, place in m1 or m2 memory
 m1 = 0
 m2 = 1
 
-
+#State object, new_device functions like taken action for Q-Values
 class state:
     old_device = 0
     new_device = 0
     hits = 0
-    p1_hits = 0
+    p1_hits = 0 #Hits from the epoch before this one
 
-
+#Q-Value matrix
 class qvalue:
     Q = []
     x0 = 0
@@ -33,18 +37,36 @@ class qvalue:
     y = 0
     z = 0
 
-
 def setQValue(s, Q, update):
+    """
+    Set Q-Value for given state/action pair.
+    s       : State/action pair
+    Q       : Q-Value matrix
+    update  : Value to insert into Q-Value matrix
+    """
     Q.Q[s.hits + s.p1_hits * Q.x0 + s.old_device * Q.x0 * Q.x1 +
         s.new_device * Q.x0 * Q.x1 * Q.y] = update
 
 
 def getQValue(s, Q):
+    """
+    Get Q-Value for given state/action pair.
+    s       : State/action pair.
+    Q       : Q-Value matrix
+    """
     return Q.Q[s.hits + s.p1_hits * Q.x0 + s.old_device * Q.x0 * Q.x1 +
                s.new_device * Q.x0 * Q.x1 * Q.y]
 
 
 def updateQValue(index, ps_count, s, Q, reward):
+    """
+    Perform a TD update to the Q-Value matrix for given page's state/action pair.
+    index       : Page's index used to select Q-Value matrix and state/action pair.
+    ps_count    : Number of pages selected for TD learning.
+    s           : Array of page states.
+    Q           : Array of page Q-Value matrices.
+    reward      : Reward for this epoch.
+    """
     q = getQValue(s[index], Q[index])
     q_new = getQValue(s[index + ps_count], Q[index])
     update = q + lr * ((1.0 * reward) + discount * q_new - q)
@@ -53,6 +75,11 @@ def updateQValue(index, ps_count, s, Q, reward):
 
 
 def getAction(s, Q):
+    """
+    Get action using e-greedy policy for given state/action pair.
+    s       : State
+    Q       : Q-Value matrix
+    """
     tmp = copy.deepcopy(s)
     tmp.new_device = 0
     m1_q = getQValue(tmp, Q)
@@ -71,6 +98,11 @@ def getAction(s, Q):
 
 
 def rl_schedule_page(s, Q):
+    """
+    Choose memory device for page given state and Q-Value matrix.
+    s       : State
+    Q       : Q-Value matrix
+    """
     return getAction(s, Q)
 
 
@@ -459,7 +491,6 @@ def reset_pages(scheduler):
         phys_pages[i].lru = 0
         phys_pages[i].virtpage = 0
 
-    #TODO Add once rl is written
     if scheduler == rl:
         for i in range(ps_count):
             sp_states[i].p1_hits = 0
@@ -468,6 +499,7 @@ def reset_pages(scheduler):
             sp_states[i].old_device = 0
 
 
+#TODO: Write this at somepoint, for now C version will work.
 def load_model(fileName):
     pass
 
