@@ -305,7 +305,7 @@ def schedule_epoch(n):
 
 
 def page_selector(fileName):
-    global ps_count
+    global ps_count, sp_states, sp_qval, selected_pages
     if ps_count == 0:
         return
 
@@ -316,6 +316,34 @@ def page_selector(fileName):
         benefitArrayRaw[s:s + ELEM_SIZE]
         for s in range(0, len(benefitArrayRaw), ELEM_SIZE)
     ]
+
+    records = []
+    for i in range(total_virtpages):
+        records.append(page_record())
+        records[i].benefit = benefitArray[i]
+        records[i].vpn = i
+
+    sp_states = []
+    for i in range(ps_count*2):
+        sp_states.append(state())
+
+    records.sort(key=lambda x: x.benefit, reverse=True)
+
+    if selected_pages == None or sp_qval == None:
+        selected_pages = [0]*ps_count
+        sp_qval = []
+        for i in range(ps_count):
+            sp_qval.append(qvalue())
+            selected_pages[i] = records[i].vpn
+
+            sp_qval[i].Q = [0.0]*int(int(HIT_CAP/HIT_DIV)*int(HIT_CAP/HIT_DIV)*2*2)
+            sp_qval[i].x0 = (HIT_CAP/HIT_DIV)
+            sp_qval[i].x1 = (HIT_CAP/HIT_DIV)
+            sp_qval[i].y = 2
+            sp_qval[i].z = 2
+
+
+
 
 
 def reset_pages(scheduler):
