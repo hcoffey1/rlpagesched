@@ -49,18 +49,18 @@ class page_record:
 
 
 class Page_table:
-    phypage = 0 
-    resident = 0 
-    dirty = 0 
-    mispredict = 0 
-    total_hits = 0 
-    chosen_index = 0 
+    phypage = 0
+    resident = 0
+    dirty = 0
+    mispredict = 0
+    total_hits = 0
+    chosen_index = 0
 
 
 class phys_page:
-    virtpage = 0 
-    lru = 0 
-    epoch_hits = 0 
+    virtpage = 0
+    lru = 0
+    epoch_hits = 0
 
 
 page_table = []
@@ -198,20 +198,84 @@ def read_config(fileName):
 
     return 0
 
+
+def history_scheduler():
+    tmp_phypage = 0
+    phys_pages.sort(key=lambda x: x.epoch_hits, reverse=True)
+
+    for i in range(total_physpages):
+        tmp_phypage = page_table[phys_pages[i].virtpage].phypage
+        if (tmp_phypage < m1_pages
+                and i >= m1_pages) or (tmp_phypage >= m1_pages
+                                       and i < m1_pages):
+            page_table[phys_pages[i].virtpage].mispredict+=1
+        
+        page_table[phys_pages[i].virtpage].phypage = i
+
+
 def schedule_epoch(n):
-    pass
+    global oracle_time, m1_delay, m2_delay
+    hits = 0
+    m1_c = 0
+    m2_c = m1_pages
+    ps_index = 0
+    ps_epoch = 0
+    j = 0
+    z = 0
+    matched = False
+    epoch_delay = 0
+
+    if n == history:
+        history_scheduler()
+    elif n == oracle:
+        phys_pages.sort(key=lambda x: x.epoch_hits, reverse=True)
+        for i in range(total_physpages):
+
+            page_table[phys_pages[i].virtpage].phypage = i
+            if i < m1_pages:
+                oracle_time += m1_delay * phys_pages[i].epoch_hits
+            else:
+                oracle_time += m2_delay * phys_pages[i].epoch_hits
+    elif n == rl:
+        pass
+
+    reset_lru()
+    reset_page_hits()
+
 
 def page_selector(fileName):
     pass
 
-def reset_pages(n):
-    pass
+
+def reset_pages(scheduler):
+    global num_pages_ref
+    num_pages_ref = 0
+    for i in range(total_virtpages):
+        page_table[i].phypage = 0
+        page_table[i].chosen_index = 0
+        page_table[i].dirty = 0
+        page_table[i].mispredict = 0
+        page_table[i].resident = 0
+        page_table[i].total_hits = 0
+
+    for i in range(total_physpages):
+        phys_pages[i].epoch_hits = 0
+        phys_pages[i].lru = 0
+        phys_pages[i].virtpage = 0
+
+    #TODO Add once rl is written
+    #if scheduler == rl:
+    #for i in range(ps_count):
+    #sp_states[i].p1_hits = 0
+
 
 def load_model(fileName):
     pass
 
+
 def save_model(fileName):
     pass
+
 
 def init_arrays():
     for _ in range(MAX_PAGES):
@@ -220,7 +284,8 @@ def init_arrays():
 
 
 def main():
-    global EPOCHS, EPOCHS_RAN
+    global EPOCHS, EPOCHS_RAN, page_hits, page_faults
+    global oracle_time
     time = 0
     init_arrays()
 
@@ -242,12 +307,12 @@ def main():
     if read_config(configFileName) != 0:
         print("Failed to read config file.")
         return 1
-    
+
     if scheduler == rl:
         epochCount = int(getCmdOption(sys.argv, "-e"))
         saveModelName = getCmdOption(sys.argv, "-SM")
         loadModelName = getCmdOption(sys.argv, "-LM")
-        
+
         if loadModelName != -1:
             load_model(loadModelName)
 
@@ -277,7 +342,7 @@ def main():
                 if cycle >= epoch_intv:
                     schedule_epoch(scheduler)
                     cycle = 0
-                
+
                 memAddr &= addr_mask
                 proc_page_lookup(accessType, memAddr, page)
                 phys_pages[page[0]].epoch_hits += 1
@@ -287,7 +352,7 @@ def main():
                     time += m1_delay
                 else:
                     time += m2_delay
-                
+
                 cycle += 1
 
         print("STATISTICS\n")
@@ -297,16 +362,17 @@ def main():
             print("{:<16} {:9}".format("Time", time))
         else:
             schedule_epoch(oracle)
-            print("{:<16} {:9}".format("Oracle Time", time))
+            print("{:<16} {:9}".format("Oracle Time", oracle_time))
 
         epoch += 1
         EPOCHS_RAN += 1
         if scheduler != rl or epoch >= EPOCHS:
             break
-    
+
     if scheduler == rl:
         if saveModelName != -1:
             save_model(saveModelName)
+
 
 if __name__ == "__main__":
     main()
