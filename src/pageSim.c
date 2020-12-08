@@ -68,7 +68,7 @@ typedef struct phys_page {
 } phys_page;
 
 phys_page phys_pages[MAX_PAGES];
-ulong ORACLE_HITS[MAX_PAGES];
+//ulong ORACLE_HITS[MAX_PAGES];
 
 // Taken and modified from: https://www.geeksforgeeks.org/quick-sort/
 // A utility function to swap two elements
@@ -593,7 +593,7 @@ void page_selector(char *fileName) {
     }
   }
 #if 0
-   printf("Total elem: %lu\n", sp_qval[0].x * sp_qval[0].y * sp_qval[0].z);
+   printf("Total elem: %lu\n", sp_qval[0].x0 * sp_qval[0].x1 * sp_qval[0].y * sp_qval[0].z);
    exit(1);
 #endif
 #if 0
