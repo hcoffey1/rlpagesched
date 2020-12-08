@@ -1,6 +1,10 @@
 #Student: Hayden Coffey
 #ECE 517: Final Project, Python Version
 #Just realized that this has to be written in python and not C.
+"""
+Simulates page scheduler algorithms including a temporal
+learning based approach inspired by the Kleio paper.
+"""
 import math
 import copy
 import random
@@ -586,6 +590,7 @@ def main():
     time = 0
     init_arrays()
 
+    #Parse command line arguments
     configFileName = getCmdOption(sys.argv, "-c")
     if configFileName == -1:
         print("No config file specified")
@@ -617,7 +622,8 @@ def main():
             EPOCHS = epochCount
 
         page_selector("benefit.log")
-
+    
+    #Training loop
     epoch = 0
     while True:
 
@@ -627,6 +633,7 @@ def main():
         page_faults = 0
         reset_pages(scheduler)
 
+        #Read tracefile and simulate accesses
         with open(traceFileName, "r") as f:
             for line in f:
                 line = (line.strip()).split(' ')
