@@ -353,7 +353,6 @@ def schedule_epoch(n):
         phys_pages_buf.sort(key=lambda x: x.epoch_hits, reverse=True)
 
         #Make decisions for selected pages
-        print(ps_epoch)
         for i in range(ps_epoch):
             ps_index = page_table[selec_page_buf[i].virtpage].chosen_index
             hits = selec_page_buf[i].epoch_hits
@@ -415,7 +414,7 @@ def page_selector(fileName):
     records = []
     for i in range(total_virtpages):
         records.append(page_record())
-        records[i].benefit = benefitArray[i]
+        records[i].benefit = int.from_bytes(benefitArray[i], "little")
         records[i].vpn = i
 
     sp_states = []
@@ -423,6 +422,11 @@ def page_selector(fileName):
         sp_states.append(state())
 
     records.sort(key=lambda x: x.benefit, reverse=True)
+
+    #for i in records:
+    #    print(i.vpn, ":", i.benefit)
+    
+    #exit(1)
 
     if selected_pages == None or sp_qval == None:
         selected_pages = [0] * ps_count
