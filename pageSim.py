@@ -22,12 +22,14 @@ epsilon = 100
 m1 = 0
 m2 = 1
 
+
 #State object, new_device functions like taken action for Q-Values
 class state:
     old_device = 0
     new_device = 0
     hits = 0
-    p1_hits = 0 #Hits from the epoch before this one
+    p1_hits = 0  #Hits from the epoch before this one
+
 
 #Q-Value matrix
 class qvalue:
@@ -36,6 +38,7 @@ class qvalue:
     x1 = 0
     y = 0
     z = 0
+
 
 def setQValue(s, Q, update):
     """
@@ -111,23 +114,31 @@ MAX_PAGES = 1024
 HIT_DIV = 100
 HIT_CAP = 10000
 
+#Controls number of epochs to train rl scheduler
 EPOCHS = 10
 EPOCHS_RAN = 0
 
+#Number of physical and virtual pages
 total_physpages = None
 total_virtpages = None
+
+#Number of m1 and m2 physical pages.
+#In tested config, m1 is a faster device than m2.
 m1_pages = None
 m2_pages = None
 m1_delay = None
 m2_delay = None
 
+#Management data for selected pages for TD learning
 ps_count = None
 selected_pages = None
 sp_states = None
 sp_qval = None
 
+#How many memory accesses to wait before scheduler steps in
 epoch_intv = None
 
+#Simulation info
 page_size = None
 addr_size = None
 tlb_line_shift = None
@@ -139,35 +150,41 @@ page_hits = 0
 num_pages_ref = 0
 oracle_time = 0
 
-FIRST = True
 
-
+#Used for reading in and sorting benefit file.
 class page_record:
     benefit = 0
     vpn = 0
 
 
+#Holds data related to virtual pages
 class Page_table:
     phypage = 0
     resident = 0
     dirty = 0
-    mispredict = 0
+    mispredict = 0  #Number of times history differed from oracle
     total_hits = 0
-    chosen_index = 0
+    chosen_index = 0  #If chosen for TD, index of element in selected array
 
 
+#Holds data related to physical pages
 class phys_page:
     virtpage = 0
     lru = 0
     epoch_hits = 0
 
 
+#Arrays of physical and virtual page objects
 page_table = []
 phys_pages = []
-ORACLE_HITS = [0] * MAX_PAGES
 
 
 def getCmdOption(args, option):
+    """
+    Used for parsing command line arguments.
+    args        : sys.argv
+    option      : Flag to search for
+    """
     try:
         i = args.index(option)
         if i != len(args) and i + 1 != len(args):
@@ -178,26 +195,44 @@ def getCmdOption(args, option):
 
 
 def power_of_two(val):
+    """
+    Return true if value is a power of 2.
+    """
     return (val & (val - 1) == 0) and val != 0
 
 
 def reset_lru():
+    """
+    Reset least recently used info for physical pages.
+    """
     for i in range(total_physpages):
         phys_pages[i].lru = 0
 
 
 def reset_page_hits():
+    """
+    Reset scheduling epoch page hits for physical pages.
+    """
     for i in range(total_physpages):
         phys_pages[i].epoch_hits = 0
 
 
 def update_page_LRU(page):
+    """
+    Update least recently used info for given physical page.
+    """
     for i in range(total_physpages):
         phys_pages[i].lru += 1
     phys_pages[page].lru = 0
 
 
 def proc_page_lookup(access_type, address, page):
+    """
+    Simulate page table memory access.
+    access_type     : Read or Write
+    address         : Virtual memory address being looked up
+    page            : Output parameter, resulting physical page for address 
+    """
     global page_hits, page_faults, diskrefs, num_pages_ref
     virtpage = 0
     k = 0
@@ -207,19 +242,23 @@ def proc_page_lookup(access_type, address, page):
 
     virtpage = address >> tlb_line_shift
 
+    #If page is in memory
     if page_table[virtpage].resident:
         page[0] = page_table[virtpage].phypage
         page_hits += 1
         hit = True
+    #Allocate physical page
     else:
         hit = False
         page_faults += 1
         diskrefs += 1
 
+        #If free physical pages
         if num_pages_ref < total_physpages:
             page_table[virtpage].phypage = num_pages_ref
             num_pages_ref += 1
             phys_pages[page_table[virtpage].phypage].virtpage = virtpage
+        #Evict LRU physical page, and replace
         else:
             lru = 0
             for i in range(m1_pages, total_physpages):
@@ -253,6 +292,9 @@ def proc_page_lookup(access_type, address, page):
 
 
 def read_config(fileName):
+    """
+    Reads in configuration file.
+    """
     global total_virtpages, total_physpages, m1_pages
     global m1_delay, m2_pages, m2_delay, page_size, addr_size
     global epoch_intv, ps_count, tlb_line_shift, addr_mask
@@ -299,6 +341,9 @@ def read_config(fileName):
 
 
 def history_scheduler():
+    """
+    History page scheduler implementation.
+    """
     tmp_phypage = 0
     phys_pages.sort(key=lambda x: x.epoch_hits, reverse=True)
 
@@ -312,8 +357,23 @@ def history_scheduler():
         page_table[phys_pages[i].virtpage].phypage = i
 
 
-def schedule_epoch(n):
+def oracle_scheduler():
+    """
+    Oracle page scheduler implementation.
+    """
     global oracle_time, m1_delay, m2_delay
+    phys_pages.sort(key=lambda x: x.epoch_hits, reverse=True)
+    for i in range(total_physpages):
+
+        page_table[phys_pages[i].virtpage].phypage = i
+        if i < m1_pages:
+            oracle_time += m1_delay * phys_pages[i].epoch_hits
+        else:
+            oracle_time += m2_delay * phys_pages[i].epoch_hits
+
+
+def schedule_epoch(n):
+    global m1_delay, m2_delay
     hits = 0
     m1_c = 0
     m2_c = m1_pages
@@ -327,24 +387,18 @@ def schedule_epoch(n):
     if n == history:
         history_scheduler()
     elif n == oracle:
-        phys_pages.sort(key=lambda x: x.epoch_hits, reverse=True)
-        for i in range(total_physpages):
+        oracle_scheduler()
 
-            page_table[phys_pages[i].virtpage].phypage = i
-            if i < m1_pages:
-                oracle_time += m1_delay * phys_pages[i].epoch_hits
-            else:
-                oracle_time += m2_delay * phys_pages[i].epoch_hits
+    #TD based page scheduler
     elif n == rl:
-        #Calculate delay over past epoch
+        #Calculate delay over past epoch to get reward
         for page in range(total_physpages):
             if page < m1_pages:
                 epoch_delay += m1_delay * phys_pages[page].epoch_hits
             else:
                 epoch_delay += m2_delay * phys_pages[page].epoch_hits
 
-        #Calculate how many selected pages are present
-        #TODO: Can we over allocate instead?
+        #Calculate how many selected pages are present in memory
         for i in range(total_physpages):
             matched = False
             for k in range(ps_count):
@@ -356,6 +410,7 @@ def schedule_epoch(n):
             if matched:
                 ps_epoch += 1
 
+        #Allocate buffers to split selected pages from non-chosen
         phys_pages_buf = []
         for i in range(total_physpages - ps_epoch):
             phys_pages_buf.append(phys_page())
@@ -364,6 +419,7 @@ def schedule_epoch(n):
         for i in range(ps_epoch):
             selec_page_buf.append(phys_page())
 
+        #Split physical pages into the two buffers
         j = z = 0
         for i in range(total_physpages):
             matched = False
@@ -416,7 +472,7 @@ def schedule_epoch(n):
                 page_table[selected_pages[ps_index]].phypage = m2_c
                 m2_c += 1
 
-        #Fill in remaining pages
+        #Fill in remaining pages using history approach
         for i in range(total_physpages - ps_epoch):
             if m1_c < m1_pages:
                 phys_pages[m1_c] = (phys_pages_buf[i])
@@ -431,10 +487,15 @@ def schedule_epoch(n):
 
 
 def page_selector(fileName):
+    """
+    Read in benefit file and choose pages to use
+    with TD based on greatest calculated importance.
+    """
     global ps_count, sp_states, sp_qval, selected_pages
     if ps_count == 0:
         return
 
+    #Read in benefit file (binary file)
     ELEM_SIZE = 8
     with open(fileName, "rb") as f:
         benefitArrayRaw = f.read()
@@ -443,23 +504,22 @@ def page_selector(fileName):
         for s in range(0, len(benefitArrayRaw), ELEM_SIZE)
     ]
 
+    #Associate benefit values with their VPNs.
     records = []
     for i in range(total_virtpages):
         records.append(page_record())
         records[i].benefit = int.from_bytes(benefitArray[i], "little")
         records[i].vpn = i
 
+    #Allocate state array for selected pages
     sp_states = []
     for i in range(ps_count * 2):
         sp_states.append(state())
 
+    #Sort records to determine most important pages
     records.sort(key=lambda x: x.benefit, reverse=True)
 
-    #for i in records:
-    #    print(i.vpn, ":", i.benefit)
-    
-    #exit(1)
-
+    #Allocate Q-Value array and choose pages
     if selected_pages == None or sp_qval == None:
         selected_pages = [0] * ps_count
         sp_qval = []
@@ -476,6 +536,9 @@ def page_selector(fileName):
 
 
 def reset_pages(scheduler):
+    """
+    Reset data objects.
+    """
     global num_pages_ref
     num_pages_ref = 0
     for i in range(total_virtpages):
@@ -509,6 +572,9 @@ def save_model(fileName):
 
 
 def init_arrays():
+    """
+    Initialize physical and virtual page arrays.
+    """
     for _ in range(MAX_PAGES):
         phys_pages.append(phys_page())
         page_table.append(Page_table())
