@@ -44,23 +44,23 @@ FIRST = True
 
 
 class page_record:
-    benefit = None
-    vpn = None
+    benefit = 0
+    vpn = 0
 
 
 class Page_table:
-    phypage = None
-    resident = None
-    dirty = None
-    mispredict = None
-    total_hits = None
-    chosen_index = None
+    phypage = 0 
+    resident = 0 
+    dirty = 0 
+    mispredict = 0 
+    total_hits = 0 
+    chosen_index = 0 
 
 
 class phys_page:
-    virtpage = None
-    lru = None
-    epoch_hits = None
+    virtpage = 0 
+    lru = 0 
+    epoch_hits = 0 
 
 
 page_table = []
@@ -204,6 +204,8 @@ def schedule_epoch(n):
 def page_selector(fileName):
     pass
 
+def reset_pages(n):
+    pass
 
 def init_arrays():
     for _ in range(MAX_PAGES):
@@ -244,6 +246,38 @@ def main():
 
     epoch = 0
     while True:
+
+        cycle = 0
+        time = 0
+        page_hits = 0
+        page_faults = 0
+        reset_pages(scheduler)
+
+        with open(traceFileName, "r") as f:
+            for line in f:
+                line = (line.strip()).split(' ')
+                line[0] = line[0].strip(':')
+                instAddr = int(line[0], 0)
+                accessType = line[1]
+                memAddr = int(line[2], 0)
+
+                page = [0]
+
+                if cycle >= epoch_intv:
+                    schedule_epoch(scheduler)
+                    cycle = 0
+                
+                memAddr &= addr_mask
+                proc_page_lookup(accessType, memAddr, page)
+                phys_pages[page[0]].epoch_hits += 1
+                page_table[phys_pages[page[0]].virtpage].total_hits += 1
+
+                if page[0] < m1_pages:
+                    time += m1_delay
+                else:
+                    time += m2_delay
+                
+                cycle += 1
 
         print("STATISTICS\n")
         print("{:<16} {:9}".format("Page Hits", page_hits))
