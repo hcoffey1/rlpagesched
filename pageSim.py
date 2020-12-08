@@ -2,6 +2,8 @@
 #Student: Hayden Coffey
 #ECE 517: Final Project, Python Version
 import math
+import copy
+import random
 import sys
 from array import array
 
@@ -9,6 +11,64 @@ history = 0
 oracle = 1
 rl = 2
 
+#Temporal Difference=========================================
+lr = 0.1
+discount = 0.9
+epsilon = 100
+
+class state:
+    old_device = 0
+    new_device = 0
+    hits = 0
+    p1_hits = 0
+
+class qvalue:
+    Q = []
+    x0 = 0
+    x1 = 0
+    y = 0
+    z = 0
+
+
+def setQValue(s, Q, update):
+    Q.Q[s.hits + s.p1_hits * Q.x0 + s.old_device * Q.x0 * Q.x1 +
+        s.new_device * Q.x0 * Q.x1 * Q.y] = update
+
+
+def getQValue(s, Q):
+    return Q.Q[s.hits + s.p1_hits * Q.x0 + s.old_device * Q.x0 * Q.x1 +
+               s.new_device * Q.x0 * Q.x1 * Q.y]
+
+def updateQValue(index, ps_count, s, Q, reward):
+    q = getQValue(s[index], Q[index])
+    q_new = getQValue(s[index + ps_count], Q[index])
+    update = q + lr * ((1.0*reward) + discount * q_new - q)
+
+    setQValue(s[index], Q + index, update)
+
+def getAction(s, Q):
+    tmp = copy.deepcopy(s)
+    tmp.new_device = 0
+    m1_q = getQValue(tmp, Q)
+    tmp.new_device = 1
+    m2_q = getQValue(tmp, Q)
+
+    r = random.randint(0, 10000 - 1)
+
+    if r >= epsilon:
+        if m1_q > m2_q:
+            return 0
+        else:
+            return 1
+    else:
+        return r % 2
+
+
+def rl_schedule_page(s, Q):
+    return getAction(s, Q)
+
+
+#Page Simulation=============================================
 MAX_PAGES = 1024
 HIT_DIV = 100
 HIT_CAP = 10000
@@ -68,19 +128,19 @@ page_table = []
 phys_pages = []
 ORACLE_HITS = [0] * MAX_PAGES
 
+
 def getCmdOption(args, option):
     try:
         i = args.index(option)
-        if i != len(args) and i+1 != len(args):
-            return args[i+1]
+        if i != len(args) and i + 1 != len(args):
+            return args[i + 1]
     except ValueError:
         pass
     return -1
 
 
 def power_of_two(val):
-    return (val & (val-1) == 0) and val != 0
-
+    return (val & (val - 1) == 0) and val != 0
 
 
 def reset_lru():
@@ -209,7 +269,7 @@ def history_scheduler():
         if (tmp_phypage < m1_pages
                 and i >= m1_pages) or (tmp_phypage >= m1_pages
                                        and i < m1_pages):
-            page_table[phys_pages[i].virtpage].mispredict+=1
+            page_table[phys_pages[i].virtpage].mispredict += 1
 
         page_table[phys_pages[i].virtpage].phypage = i
 
