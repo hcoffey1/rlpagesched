@@ -18,11 +18,13 @@ epsilon = 100
 m1 = 0
 m2 = 1
 
+
 class state:
     old_device = 0
     new_device = 0
     hits = 0
     p1_hits = 0
+
 
 class qvalue:
     Q = []
@@ -41,12 +43,14 @@ def getQValue(s, Q):
     return Q.Q[s.hits + s.p1_hits * Q.x0 + s.old_device * Q.x0 * Q.x1 +
                s.new_device * Q.x0 * Q.x1 * Q.y]
 
+
 def updateQValue(index, ps_count, s, Q, reward):
     q = getQValue(s[index], Q[index])
     q_new = getQValue(s[index + ps_count], Q[index])
-    update = q + lr * ((1.0*reward) + discount * q_new - q)
+    update = q + lr * ((1.0 * reward) + discount * q_new - q)
 
     setQValue(s[index], Q[index], update)
+
 
 def getAction(s, Q):
     tmp = copy.deepcopy(s)
@@ -349,6 +353,7 @@ def schedule_epoch(n):
         phys_pages_buf.sort(key=lambda x: x.epoch_hits, reverse=True)
 
         #Make decisions for selected pages
+        print(ps_epoch)
         for i in range(ps_epoch):
             ps_index = page_table[selec_page_buf[i].virtpage].chosen_index
             hits = selec_page_buf[i].epoch_hits
@@ -371,23 +376,23 @@ def schedule_epoch(n):
 
             #If action is assigning to m1
             if sp_states[ps_index].new_device == m1:
-                phys_pages[m1_c] = copy.deepcopy(selec_page_buf[i])
+                phys_pages[m1_c] = (selec_page_buf[i])
                 page_table[selected_pages[ps_index]].phypage = m1_c
                 m1_c += 1
             #Else assign to m2
             else:
-                phys_pages[m2_c] = copy.deepcopy(selec_page_buf[i])
+                phys_pages[m2_c] = (selec_page_buf[i])
                 page_table[selected_pages[ps_index]].phypage = m2_c
                 m2_c += 1
 
         #Fill in remaining pages
         for i in range(total_physpages - ps_epoch):
             if m1_c < m1_pages:
-                phys_pages[m1_c] = copy.deepcopy(phys_pages_buf[i])
+                phys_pages[m1_c] = (phys_pages_buf[i])
                 page_table[phys_pages[m1_c].virtpage].phypage = m1_c
                 m1_c += 1
             else:
-                phys_pages[m2_c] = copy.deepcopy(phys_pages_buf[i])
+                phys_pages[m2_c] = (phys_pages_buf[i])
                 page_table[phys_pages[m2_c].virtpage].phypage = m2_c
                 m2_c += 1
     reset_lru()
