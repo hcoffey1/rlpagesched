@@ -697,6 +697,8 @@ int load_model(char *fileName) {
   printf("LOADED MODEL:\n");
   printf("PS COUNT: %u\n", tmp_ps_count);
   printf("EPOCHS RAN: %lu\n", EPOCHS_RAN);
+
+  return 0;
 }
 /*
  * main - drives the cache simulator
