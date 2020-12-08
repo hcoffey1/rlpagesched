@@ -3,6 +3,7 @@
 #ECE 517: Final Project, Python Version
 import math
 import sys
+from array import array
 
 history = 0
 oracle = 1
@@ -209,7 +210,7 @@ def history_scheduler():
                 and i >= m1_pages) or (tmp_phypage >= m1_pages
                                        and i < m1_pages):
             page_table[phys_pages[i].virtpage].mispredict+=1
-        
+
         page_table[phys_pages[i].virtpage].phypage = i
 
 
@@ -244,7 +245,17 @@ def schedule_epoch(n):
 
 
 def page_selector(fileName):
-    pass
+    global ps_count
+    if ps_count == 0:
+        return
+
+    ELEM_SIZE = 8
+    with open(fileName, "rb") as f:
+        benefitArrayRaw = f.read()
+    benefitArray = [
+        benefitArrayRaw[s:s + ELEM_SIZE]
+        for s in range(0, len(benefitArrayRaw), ELEM_SIZE)
+    ]
 
 
 def reset_pages(scheduler):

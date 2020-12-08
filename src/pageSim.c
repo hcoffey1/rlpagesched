@@ -563,6 +563,13 @@ void page_selector(char *fileName) {
   ulong *benefitArray = malloc(sizeof(ulong) * total_virtpages);
   fread(benefitArray, total_virtpages, sizeof(ulong), f);
   fclose(f);
+  #if 0
+  for(int i = 0; i < total_virtpages; i++)
+  {
+    printf("%lu\n", benefitArray[i]);
+  }
+  exit(1);
+  #endif
 
   // Associate benefit data with VPNs
   struct page_record *records =
