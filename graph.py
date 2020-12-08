@@ -42,6 +42,7 @@ file1 = "medium_2q_10000.log"
 file2 = "medium_2q_0.5d_10000.log"
 file3 = "medium_2q_0.9d_1hd_10000.log"
 file4 = "medium_2q_0.5d_1hd_10000.log"
+file5 = "timeOut"
 history_val = 3622753
 #targetDir = directory + file
 
@@ -82,41 +83,14 @@ with open(file4) as f:
             continue
         if sp[0] == "Time":
             tmp_data4.append(int(sp[1])/(1.0*history_val))
-    #lines = f.readlines()
-    #for x in lines[0].split():
-    #    tmp_data.append(float(x))
 
-    #tmp.time = float(lines[1])
-#print(tmp_data)
-#tmp.data = tmp_data.copy()
-#dataRecords.append(tmp)
-
-#timeData_1_0 = {}
-#timeData_1_1 = {}
-#timeData_2_0 = {}
-#timeData_2_1 = {}
-#for data in dataRecords:
-#    if data.r_policy == 0 and data.m == MC_EV:
-#        timeData_1_0[data.n] = (data.time)
-#
-#    if data.r_policy == 0 and data.m == QL:
-#        timeData_2_0[data.n] = (data.time)
-#
-#    if data.r_policy == 1 and data.m == MC_EV:
-#        timeData_1_1[data.n] = (data.time)
-#
-#    if data.r_policy == 1 and data.m == QL:
-#        timeData_2_1[data.n] = (data.time)
-#
-#keys = sorted(timeData_1_1.keys(), reverse=False)
-#x1 = []
-#for key in keys:
-#    x1.append(timeData_1_1[key])
-#
-#keys = sorted(timeData_2_1.keys(), reverse=False)
-#x2 = []
-#for key in keys:
-#    x2.append(timeData_2_1[key])
+tmp_data5 = []
+with open(file5) as f:
+    for line in f:
+        sp = (line.split())
+        minute = int((sp[1].split('m')[0]))
+        second = int((sp[1].split('m')[1].split('.')[0]))
+        tmp_data5.append(minute*60 + second)
 
 fig, ax1 = plt.subplots()
 
@@ -125,18 +99,6 @@ fig, ax1 = plt.subplots()
 indx1 = 2
 indx2 = 1
 
-#if dataRecords[indx1].m == QL:
-#    method_str1 = "Q-Learning"
-#elif dataRecords[indx1].m == MC_EV:
-#    method_str1 = "Every-Visit MC"
-#
-#if dataRecords[indx2].m == QL:
-#    method_str2 = "Q-Learning"
-#elif dataRecords[indx2].m == MC_EV:
-#    method_str2 = "Every-Visit MC"
-
-#r_code = dataRecords[indx1].r_policy
-#n = dataRecords[indx1].n
 
 title = "Relative Performance vs Episode Count"
 #title = "Return vs Epochs, RP:{}, ({} Episodes)".format(r_code,n)
@@ -144,19 +106,8 @@ title = "Relative Performance vs Episode Count"
 xlabel = "Episode Count"
 ylabel = "Performance Relative to History Scheduler"
 
-#xlabel = "Epochs (Averaged by groups of {})".format(n/100)
-#ylabel = "Summed Return"
-
-#x1 = list(timeData_1_0.values())
-#x2 = list(timeData_2_0.values())
-#x1 = dataRecords[indx1].data
-#x2 = dataRecords[indx2].data
-
 # plotting the line 1 points
 plt.plot(tmp_data1, label="lr=0.1, discount=0.9, history_depth=2")
-# line 2 points
-#x2 = [10,20,30]
-#y2 = [40,10,30]
 # plotting the line 2 points
 plt.plot(tmp_data2, label="lr=0.1, discount=0.5, history_depth=2")
 
@@ -178,5 +129,17 @@ plt.ylabel(ylabel)
 plt.title(title)
 # show a legend on the plot
 plt.legend()
+
+plt.show()
+
+xlabel = "Number of Trained Pages"
+ylabel = "Time to Execute 1000 Epochs (s)"
+
+plt.plot(tmp_data5)
+plt.xlabel(xlabel)
+# Set the y axis label of the current axis.
+plt.ylabel(ylabel)
+# Set a title of the current axes.
+plt.title(title)
 
 plt.show()
