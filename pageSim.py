@@ -207,6 +207,12 @@ def page_selector(fileName):
 def reset_pages(n):
     pass
 
+def load_model(fileName):
+    pass
+
+def save_model(fileName):
+    pass
+
 def init_arrays():
     for _ in range(MAX_PAGES):
         phys_pages.append(phys_page())
@@ -239,6 +245,12 @@ def main():
     
     if scheduler == rl:
         epochCount = int(getCmdOption(sys.argv, "-e"))
+        saveModelName = getCmdOption(sys.argv, "-SM")
+        loadModelName = getCmdOption(sys.argv, "-LM")
+        
+        if loadModelName != -1:
+            load_model(loadModelName)
+
         if epochCount != -1:
             EPOCHS = epochCount
 
@@ -257,7 +269,6 @@ def main():
             for line in f:
                 line = (line.strip()).split(' ')
                 line[0] = line[0].strip(':')
-                instAddr = int(line[0], 0)
                 accessType = line[1]
                 memAddr = int(line[2], 0)
 
@@ -292,6 +303,10 @@ def main():
         EPOCHS_RAN += 1
         if scheduler != rl or epoch >= EPOCHS:
             break
+    
+    if scheduler == rl:
+        if saveModelName != -1:
+            save_model(saveModelName)
 
 if __name__ == "__main__":
     main()
