@@ -15,6 +15,8 @@ rl = 2
 lr = 0.1
 discount = 0.9
 epsilon = 100
+m1 = 0
+m2 = 1
 
 class state:
     old_device = 0
@@ -44,7 +46,7 @@ def updateQValue(index, ps_count, s, Q, reward):
     q_new = getQValue(s[index + ps_count], Q[index])
     update = q + lr * ((1.0*reward) + discount * q_new - q)
 
-    setQValue(s[index], Q + index, update)
+    setQValue(s[index], Q[index], update)
 
 def getAction(s, Q):
     tmp = copy.deepcopy(s)
@@ -57,9 +59,9 @@ def getAction(s, Q):
 
     if r >= epsilon:
         if m1_q > m2_q:
-            return 0
+            return m1
         else:
-            return 1
+            return m2
     else:
         return r % 2
 
@@ -298,8 +300,96 @@ def schedule_epoch(n):
             else:
                 oracle_time += m2_delay * phys_pages[i].epoch_hits
     elif n == rl:
-        pass
+        #Calculate delay over past epoch
+        for page in range(total_physpages):
+            if page < m1_pages:
+                epoch_delay += m1_delay * phys_pages[page].epoch_hits
+            else:
+                epoch_delay += m2_delay * phys_pages[page].epoch_hits
 
+        #Calculate how many selected pages are present
+        #TODO: Can we over allocate instead?
+        for i in range(total_physpages):
+            matched = False
+            for k in range(ps_count):
+                if selected_pages[k] == phys_pages[i].virtpage:
+                    matched = True
+                    ps_index = k
+                    break
+
+            if matched:
+                ps_epoch += 1
+
+        phys_pages_buf = []
+        for i in range(total_physpages - ps_epoch):
+            phys_pages_buf.append(phys_page())
+
+        selec_page_buf = []
+        for i in range(ps_epoch):
+            selec_page_buf.append(phys_page())
+
+        j = z = 0
+        for i in range(total_physpages):
+            matched = False
+
+            for k in range(ps_count):
+                if selected_pages[k] == phys_pages[i].virtpage:
+                    matched = True
+                    selec_page_buf[z] = phys_pages[i]
+                    page_table[selec_page_buf[z].virtpage].chosen_index = k
+                    z += 1
+
+            if matched:
+                continue
+
+            phys_pages_buf[j] = phys_pages[i]
+            j += 1
+
+        #Sort non-selected pages
+        phys_pages_buf.sort(key=lambda x: x.epoch_hits, reverse=True)
+
+        #Make decisions for selected pages
+        for i in range(ps_epoch):
+            ps_index = page_table[selec_page_buf[i].virtpage].chosen_index
+            hits = selec_page_buf[i].epoch_hits
+            if hits > HIT_CAP:
+                hits = HIT_CAP - 1
+
+            #Calculate new state
+            sp_states[ps_index + ps_count].p1_hits = int(
+                sp_states[ps_index + ps_count].hits)
+            sp_states[ps_index + ps_count].hits = int(int(hits) / int(HIT_DIV))
+            sp_states[ps_index + ps_count].old_device = int(
+                page_table[selected_pages[ps_index]].phypage / m1_pages)
+            sp_states[ps_index + ps_count].new_device = int(
+                rl_schedule_page(sp_states[ps_index], sp_qval[ps_index]))
+
+            updateQValue(ps_index, ps_count, sp_states, sp_qval, -epoch_delay)
+
+            #Update old state
+            sp_states[ps_index] = sp_states[ps_index + ps_count]
+
+            #If action is assigning to m1
+            if sp_states[ps_index].new_device == m1:
+                phys_pages[m1_c] = copy.deepcopy(selec_page_buf[i])
+                page_table[selected_pages[ps_index]].phypage = m1_c
+                m1_c += 1
+            #Else assign to m2
+            else:
+                phys_pages[m2_c] = copy.deepcopy(selec_page_buf[i])
+                page_table[selected_pages[ps_index]].phypage = m2_c
+                m2_c += 1
+
+        #Fill in remaining pages
+        for i in range(total_physpages - ps_epoch):
+            if m1_c < m1_pages:
+                phys_pages[m1_c] = copy.deepcopy(phys_pages_buf[i])
+                page_table[phys_pages[m1_c].virtpage].phypage = m1_c
+                m1_c += 1
+            else:
+                phys_pages[m2_c] = copy.deepcopy(phys_pages_buf[i])
+                page_table[phys_pages[m2_c].virtpage].phypage = m2_c
+                m2_c += 1
     reset_lru()
     reset_page_hits()
 
@@ -324,26 +414,24 @@ def page_selector(fileName):
         records[i].vpn = i
 
     sp_states = []
-    for i in range(ps_count*2):
+    for i in range(ps_count * 2):
         sp_states.append(state())
 
     records.sort(key=lambda x: x.benefit, reverse=True)
 
     if selected_pages == None or sp_qval == None:
-        selected_pages = [0]*ps_count
+        selected_pages = [0] * ps_count
         sp_qval = []
         for i in range(ps_count):
             sp_qval.append(qvalue())
             selected_pages[i] = records[i].vpn
 
-            sp_qval[i].Q = [0.0]*int(int(HIT_CAP/HIT_DIV)*int(HIT_CAP/HIT_DIV)*2*2)
-            sp_qval[i].x0 = (HIT_CAP/HIT_DIV)
-            sp_qval[i].x1 = (HIT_CAP/HIT_DIV)
+            sp_qval[i].Q = [0.0] * int(
+                int(HIT_CAP / HIT_DIV) * int(HIT_CAP / HIT_DIV) * 2 * 2)
+            sp_qval[i].x0 = int(HIT_CAP / HIT_DIV)
+            sp_qval[i].x1 = int(HIT_CAP / HIT_DIV)
             sp_qval[i].y = 2
             sp_qval[i].z = 2
-
-
-
 
 
 def reset_pages(scheduler):
@@ -363,9 +451,12 @@ def reset_pages(scheduler):
         phys_pages[i].virtpage = 0
 
     #TODO Add once rl is written
-    #if scheduler == rl:
-    #for i in range(ps_count):
-    #sp_states[i].p1_hits = 0
+    if scheduler == rl:
+        for i in range(ps_count):
+            sp_states[i].p1_hits = 0
+            sp_states[i].hits = 0
+            sp_states[i].new_device = 0
+            sp_states[i].old_device = 0
 
 
 def load_model(fileName):
