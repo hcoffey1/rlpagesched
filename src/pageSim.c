@@ -808,20 +808,21 @@ int main(int argc, char **argv) {
       printf("%-16s %9lu\n", "Oracle Time", oracle_time);
     }
 
-// Toggle this to generate benefit log file, use history scheduler in config
-#if 0
-  benLog = fopen("benefit.log", "wb");
-  for (int i = 0; i < total_virtpages; i++) {
-    ulong tmp = (page_table[i].mispredict * page_table[i].total_hits);
-    //    printf("%lu\n", tmp);
-    fwrite(&tmp, sizeof(ulong), 1, benLog);
-  }
-  fclose(benLog);
-#endif
     fclose(f);
     epoch++;
     EPOCHS_RAN++;
   } while (scheduler == rl && epoch < EPOCHS);
+
+  // Toggle this to generate benefit log file, use history scheduler in config
+  if (scheduler == history) {
+    benLog = fopen("benefit.log", "wb");
+    for (int i = 0; i < total_virtpages; i++) {
+      ulong tmp = (page_table[i].mispredict * page_table[i].total_hits);
+      //    printf("%lu\n", tmp);
+      fwrite(&tmp, sizeof(ulong), 1, benLog);
+    }
+    fclose(benLog);
+  }
 
   if (scheduler == rl) {
     if (saveModelName != 0) {

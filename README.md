@@ -42,6 +42,8 @@ Kleio Paper:
 https://www.blagodurov.net/files/hpdc002-doudaliA.pdf
 
 ## Examples
+NOTE: A benefit log file is needed to run the RL scheduler, a sample log is included in the repo that matches the given config.
+To generate more benefit logs, run the configuration with the history scheduler first.
 
 Run the executable using config file <code>config.txt</code>, trace file <code>medium.log</code>, with the RL scheduler, saving and loading the model
 from the same file, and running for 10000 epochs.
