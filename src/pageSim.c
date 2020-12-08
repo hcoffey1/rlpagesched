@@ -382,7 +382,6 @@ void schedule_epoch(enum SCHEDULER n) {
   phys_page *phys_pages_buf;
   phys_page *selec_page_buf;
 
-  int m1p = 0;
   switch (n) {
     // History Page Schedule    state x;r
   case history:
@@ -510,7 +509,6 @@ void schedule_epoch(enum SCHEDULER n) {
         // printf("%d %lx\n", m1_c, phys_pages[m1_c].virtpage);
         page_table[phys_pages[m1_c].virtpage].phypage = m1_c;
         m1_c++;
-        m1p++;
       } else {
         phys_pages[m2_c] = phys_pages_buf[i];
 
@@ -520,10 +518,6 @@ void schedule_epoch(enum SCHEDULER n) {
       }
     }
 #endif
-    // printf("m1p %d\n", m1p);
-
-    // printf("%d\n", ps_epoch);
-
 #endif
     free(phys_pages_buf);
     free(selec_page_buf);
