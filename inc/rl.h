@@ -14,12 +14,7 @@ typedef struct state {
   ulong hits;
   ulong p1_hits;
 } state;
-/*
-typedef struct policy {
-  ACTION **pi;
-  ulong x, y;
-} policy;
-*/
+
 typedef struct qvalue{
     double * Q;
     ulong x0,x1,y,z;

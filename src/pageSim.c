@@ -68,7 +68,6 @@ typedef struct phys_page {
 } phys_page;
 
 phys_page phys_pages[MAX_PAGES];
-//ulong ORACLE_HITS[MAX_PAGES];
 
 // Taken and modified from: https://www.geeksforgeeks.org/quick-sort/
 // A utility function to swap two elements
@@ -431,7 +430,6 @@ void schedule_epoch(enum SCHEDULER n) {
       }
     }
 
-    // printf("%d %d\n", ps_epoch, ps_count);
     // Allocate buffer, copy over pages not chosen, and sort
     phys_pages_buf = malloc(sizeof(phys_page) * (total_physpages - ps_epoch));
     selec_page_buf = malloc(sizeof(phys_page) * ps_epoch);
@@ -557,13 +555,13 @@ void page_selector(char *fileName) {
   ulong *benefitArray = malloc(sizeof(ulong) * total_virtpages);
   fread(benefitArray, total_virtpages, sizeof(ulong), f);
   fclose(f);
-  #if 0
+#if 0
   for(int i = 0; i < total_virtpages; i++)
   {
     printf("%lu\n", benefitArray[i]);
   }
   exit(1);
-  #endif
+#endif
 
   // Associate benefit data with VPNs
   struct page_record *records =
@@ -810,6 +808,7 @@ int main(int argc, char **argv) {
       printf("%-16s %9lu\n", "Oracle Time", oracle_time);
     }
 
+// Toggle this to generate benefit log file, use history scheduler in config
 #if 0
   benLog = fopen("benefit.log", "wb");
   for (int i = 0; i < total_virtpages; i++) {
@@ -832,12 +831,6 @@ int main(int argc, char **argv) {
 
   if (selected_pages != NULL) {
     free(selected_pages);
-    /*for (int i = 0; i < ps_count; i++) {
-      // Initialize Q values for each page
-      free(sp_qval[i].Q);
-    }
-    free(sp_states);
-    free(sp_qval);*/
   }
 
   return 0;
